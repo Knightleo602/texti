@@ -1,0 +1,32 @@
+keybindings:
+  HomeScreen:
+    up: Up
+    down: Down
+    enter: Confirm
+    esc: Cancel
+    h: Help
+    i: Insert
+    q: Quit
+  Editor:
+    up: Up
+    down: Down
+    left: Left
+    right: Right
+    shift-up: Up
+    shift-down: Down
+    shift-left: Left
+    shift-right: Right
+    esc: Cancel
+    ctrl-h: Help
+    ctrl-i: Insert
+    ctrl-q: Quit
+    ctrl-s: Save
+    ctrl-a: SelectAll
+    ctrl-x: Cut
+    ctrl-c: Copy
+    ctrl-v: Paste
+    ctrl-r: Return
+    ctrl-z: Undo
+    ctrl-shift-z: Redo
+
+appconfig:

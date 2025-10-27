@@ -1,0 +1,27 @@
+[package]
+name = "texti"
+version = "0.1.0"
+edition = "2024"
+description = "A simple terminal text editor"
+authors = ["Knight Leo <knightleo602@gmail.com>"]
+
+[dependencies]
+clap = { version = "4.5.50", features = ["derive"] }
+config = { version = "0.15.18", default-features = false, features = ["yaml"] }
+crossterm = { version = "0.29.0", features = ["serde", "event-stream"] }
+directories = "6.0.0"
+ratatui = { version = "0.29.0", features = ["serde", "macros"] }
+lazy_static = "1.5.0"
+strum = { version = "0.27.2", features = ["derive"] }
+tokio = { version = "1.48.0", features = ["full"] }
+tokio-util = "0.7.16"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_yaml = "0.9.34"
+color-eyre = "0.6.5"
+better-panic = "0.3.0"
+futures = "0.3.31"
+libc = "0.2.177"
+tui-big-text = "0.7.1"
+tui-textarea = "0.7.0"
+clipboard = "0.5.0"
+throbber-widgets-tui = "0.9.0"
