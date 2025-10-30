@@ -1,20 +1,22 @@
-use crate::action::{Action, ActionResult, ActionSender, SaveFileResult};
-use crate::component::component_utils::{center, default_block};
+use crate::action::{
+    Action, ActionResult, ActionSender, AsyncAction, AsyncActionSender, SaveFileResult,
+    SelectorType,
+};
+use crate::component::component_utils::{center, default_block, write_file};
+use crate::component::file_selector::component::FileSelectorComponent;
 use crate::component::help::{HelpComponent, KEYBINDS_HELP_TITLE};
 use crate::component::notification::NotificationComponent;
 use crate::component::{AppComponent, Component};
 use crate::config::Config;
 use clipboard::{ClipboardContext, ClipboardProvider};
 use color_eyre::eyre::{eyre, Result};
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::KeyEvent;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::text::Line;
 use ratatui::Frame;
-use std::fs;
+use std::env::current_dir;
 use std::path::PathBuf;
 use throbber_widgets_tui::{Throbber, BRAILLE_SIX_DOUBLE};
-use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
 use tui_textarea::{CursorMove, TextArea};
 
 const UNSAVED_FILE_NAME: &str = "unsaved";
@@ -50,12 +52,15 @@ impl Buffer<'_> {
             clipboard_context: new_clipboard(),
         }
     }
-
+    fn current_path(&self) -> PathBuf {
+        self.file_path
+            .clone()
+            .unwrap_or_else(|| current_dir().unwrap_or_default())
+    }
     fn clear(&mut self) {
         self.modified = false;
         self.text_area = TextArea::default();
     }
-
     pub fn file_name(&self) -> String {
         let Some(path) = &self.file_path else {
             return UNSAVED_FILE_NAME.to_string();
@@ -65,14 +70,12 @@ impl Buffer<'_> {
         };
         file_name.to_string()
     }
-
     pub fn file_path(&self) -> Option<String> {
         self.file_path
             .as_ref()?
             .parent()
             .map(|p| p.to_string_lossy().to_string())
     }
-
     pub fn push_to_clipboard(&mut self, text: String) -> Result<()> {
         let Some(clipboard) = self.clipboard_context.as_mut() else {
             return Err(eyre!("Clipboard is unavailable"));
@@ -82,6 +85,10 @@ impl Buffer<'_> {
             .map_err(|e| eyre!(e.to_string()))?;
         Ok(())
     }
+    pub fn get_from_clipboard(&mut self) -> Option<String> {
+        let copied = self.clipboard_context.as_mut()?;
+        copied.get_contents().ok()
+    }
 }
 
 #[derive(Default)]
@@ -90,17 +97,18 @@ pub struct EditorComponent<'a> {
     loading: bool,
     saving_file: bool,
     action_sender: Option<ActionSender>,
+    task_result_sender: Option<AsyncActionSender>,
     insert: bool,
     config: Config,
     help_key: Option<char>,
-    creating_file_name: bool,
     notification: NotificationComponent,
     help_component: Option<HelpComponent>,
+    file_dialog: FileSelectorComponent<'a>,
 }
 
 impl EditorComponent<'_> {
-    pub fn new(file: String) -> Self {
-        let path = PathBuf::from(file);
+    pub fn new<S: AsRef<str>>(file: S) -> Self {
+        let path = PathBuf::from(file.as_ref());
         let buffer = Buffer::new(Some(path));
         Self {
             buffer,
@@ -111,142 +119,58 @@ impl EditorComponent<'_> {
         let Some(path) = &mut self.buffer.file_path else {
             return;
         };
-        let action_sender = self.action_sender.clone().unwrap();
+        let action_sender = self.task_result_sender.clone().unwrap();
         let path = path.clone();
         self.loading = true;
         tokio::spawn(async move {
             if !path.exists() || path.is_dir() {
-                let _ = action_sender.send(Action::LoadFileContents(String::new()));
+                let _ = action_sender.send(AsyncAction::LoadFileContents(String::new()));
                 return;
             }
             let res = tokio::fs::read(path).await;
             match res {
                 Ok(contents) => {
                     let string = String::from_utf8(contents).unwrap();
-                    let action = Action::LoadFileContents(string);
+                    let action = AsyncAction::LoadFileContents(string);
                     let _ = action_sender.send(action);
                 }
                 Err(err) => {
-                    let action = Action::Error(format!("{:?}", err));
+                    let action = AsyncAction::Error(format!("{:?}", err));
                     let _ = action_sender.send(action);
                 }
             }
         });
     }
-    fn save_file(&mut self) -> bool {
-        if !self.buffer.modified {
-            return false;
+    fn handle_selector(&mut self, path_buf: PathBuf, selector_type: SelectorType) -> ActionResult {
+        match selector_type {
+            SelectorType::PickFolder | SelectorType::NewFile => self.save_file_at(path_buf),
+            SelectorType::PickFile => {
+                self.buffer.file_path = Some(path_buf);
+                self.load_file();
+                ActionResult::consumed(true)
+            }
+        }
+    }
+    fn save_file(&mut self) -> ActionResult {
+        if !self.buffer.modified && self.buffer.file_path.is_some() {
+            return ActionResult::not_consumed(false);
         }
         let Some(path) = self.buffer.file_path.clone() else {
-            return false;
+            return self.open_file_dialog(SelectorType::NewFile);
         };
+        self.save_file_at(path)
+    }
+    fn save_file_at(&mut self, path: PathBuf) -> ActionResult {
+        self.buffer.file_path = Some(path.clone());
         let lines = self.buffer.text_area.lines().join("\n");
-        let action_sender = self.action_sender.clone().unwrap();
+        let action_sender = self.task_result_sender.clone().unwrap();
         self.saving_file = true;
+        self.file_dialog.hide();
         tokio::spawn(async move {
-            if !path.exists()
-                && let Some(parent) = path.parent()
-                && let Err(e) = fs::create_dir_all(parent)
-            {
-                let result = SaveFileResult::Error(e.to_string());
-                let _ = action_sender.send(Action::SavedFile(result));
-                return;
-            };
-            let mut file = match File::create(&path).await {
-                Ok(file) => file,
-                Err(e) => {
-                    let result = SaveFileResult::Error(e.to_string());
-                    let _ = action_sender.send(Action::SavedFile(result));
-                    return;
-                }
-            };
-            let result = if let Err(e) = file.write_all(lines.as_ref()).await {
-                SaveFileResult::Error(e.to_string())
-            } else {
-                SaveFileResult::Saved(path)
-            };
-            if let Err(e) = file.flush().await {
-                let result = SaveFileResult::Error(e.to_string());
-                let _ = action_sender.send(Action::SavedFile(result));
-                return;
-            }
-            let _ = action_sender.send(Action::SavedFile(result));
+            let r = write_file(path, lines).await;
+            let _ = action_sender.send(r);
         });
-        true
-    }
-    fn handle_ctrl_key_event(&mut self, key_event: KeyEvent) -> bool {
-        if !key_event.modifiers.contains(KeyModifiers::CONTROL) {
-            return false;
-        };
-        let Some(action) = self.get_action(key_event) else {
-            return true;
-        };
-        let _ = self.action_sender.as_ref().unwrap().send(action);
-        true
-    }
-    fn handle_shift_key_event(&mut self, key_event: KeyEvent) -> bool {
-        if !key_event.modifiers.contains(KeyModifiers::SHIFT) {
-            if let Some(action) = self.get_action(key_event)
-                && action.is_directional_action()
-            {
-                self.buffer.text_area.cancel_selection();
-            };
-            return false;
-        };
-        let Some(action) = self.get_action(key_event) else {
-            return true;
-        };
-        if action.is_directional_action() {
-            if !self.buffer.text_area.is_selecting() {
-                self.buffer.text_area.start_selection();
-            }
-        } else {
-            self.buffer.text_area.cancel_selection()
-        }
-        let _ = self.action_sender.as_ref().unwrap().send(action);
-        true
-    }
-    fn get_action(&mut self, key_event: KeyEvent) -> Option<Action> {
-        self.config
-            .keybindings
-            .get_action(AppComponent::Editor, key_event)
-    }
-    fn handle_normal_key_event(&mut self, key_event: KeyEvent) -> ActionResult {
-        match key_event.code {
-            KeyCode::Char(char) => {
-                if self.buffer.text_area.is_selecting() {
-                    let previous_yank = self.buffer.text_area.yank_text();
-                    self.buffer.text_area.cut();
-                    self.buffer.text_area.cancel_selection();
-                    self.buffer.text_area.set_yank_text(previous_yank)
-                }
-                self.buffer.text_area.insert_char(char);
-                self.buffer.modified = true;
-                return ActionResult::consumed(true);
-            }
-            KeyCode::Backspace => {
-                self.buffer.text_area.delete_char();
-                self.buffer.modified = true;
-                return ActionResult::consumed(true);
-            }
-            KeyCode::Enter => {
-                self.buffer.text_area.insert_newline();
-                self.buffer.modified = true;
-                return ActionResult::consumed(true);
-            }
-            KeyCode::Tab => {
-                self.buffer.text_area.insert_tab();
-                self.buffer.modified = true;
-                return ActionResult::consumed(true);
-            }
-            KeyCode::Delete => {
-                self.buffer.text_area.delete_next_char();
-                self.buffer.modified = true;
-                return ActionResult::consumed(true);
-            }
-            _ => {}
-        };
-        Default::default()
+        ActionResult::consumed(true)
     }
     fn show_help(&mut self) {
         let Some(comp) =
@@ -259,9 +183,154 @@ impl EditorComponent<'_> {
     fn hide_help(&mut self) {
         self.help_component = None;
     }
+    fn start_selection(&mut self) {
+        if !self.buffer.text_area.is_selecting() {
+            self.buffer.text_area.start_selection();
+        }
+    }
+    fn stop_selection(&mut self) {
+        self.buffer.text_area.cancel_selection();
+    }
+    fn move_cursor(&mut self, cursor_move: CursorMove) -> ActionResult {
+        self.buffer.text_area.move_cursor(cursor_move);
+        ActionResult::consumed(true)
+    }
+    fn delete(&mut self) -> ActionResult {
+        if self.buffer.text_area.delete_char() {
+            ActionResult::consumed(true)
+        } else {
+            ActionResult::not_consumed(false)
+        }
+    }
+    fn cut_selection(&mut self) -> ActionResult {
+        self.buffer.text_area.cut();
+        let yanked = self.buffer.text_area.yank_text();
+        self.stop_selection();
+        if yanked.is_empty() {
+            return ActionResult::Consumed { rerender: true };
+        }
+        match self.buffer.push_to_clipboard(yanked) {
+            Ok(_) => self.notification.notify_text("Cut"),
+            Err(e) => self.notification.notify_error(e),
+        }
+        ActionResult::consumed(true)
+    }
+    fn add_char(&mut self, char: char) -> ActionResult {
+        if self.buffer.text_area.is_selecting() {
+            let previous_yank = self.buffer.text_area.yank_text();
+            self.buffer.text_area.cut();
+            self.buffer.text_area.cancel_selection();
+            self.buffer.text_area.set_yank_text(previous_yank)
+        }
+        self.buffer.text_area.insert_char(char);
+        self.buffer.modified = true;
+        ActionResult::consumed(true)
+    }
+    fn backspace(&mut self) -> ActionResult {
+        self.buffer.text_area.delete_char();
+        self.buffer.modified = true;
+        ActionResult::consumed(true)
+    }
+    fn new_line(&mut self) -> ActionResult {
+        self.buffer.text_area.insert_newline();
+        self.buffer.modified = true;
+        ActionResult::consumed(true)
+    }
+    fn tab(&mut self) -> ActionResult {
+        self.buffer.text_area.insert_tab();
+        self.buffer.modified = true;
+        ActionResult::consumed(true)
+    }
+    fn toggle_help(&mut self) -> ActionResult {
+        if self.help_component.is_some() {
+            self.hide_help();
+        } else {
+            self.show_help();
+        }
+        ActionResult::consumed(true)
+    }
+    fn load_file_contents(&mut self, contents: String) -> ActionResult {
+        self.loading = false;
+        self.buffer.clear();
+        self.buffer.text_area.insert_str(contents);
+        self.buffer.text_area.cancel_selection();
+        ActionResult::consumed(true)
+    }
+    fn begin_insert_mode(&mut self) -> ActionResult {
+        self.insert = true;
+        ActionResult::consumed(true)
+    }
+    fn copy_selection(&mut self) -> ActionResult {
+        self.buffer.text_area.copy();
+        let yanked = self.buffer.text_area.yank_text();
+        if yanked.is_empty() {
+            return ActionResult::consumed(false);
+        }
+        if let Err(e) = self.buffer.push_to_clipboard(yanked) {
+            self.notification.notify_error(e)
+        } else {
+            self.notification.notify_text("Copied")
+        }
+        ActionResult::consumed(true)
+    }
+    fn paste_text_from_clipboard(&mut self) -> ActionResult {
+        let Some(contents) = self.buffer.get_from_clipboard() else {
+            return ActionResult::consumed(false);
+        };
+        self.paste_text(contents)
+    }
+    fn paste_text(&mut self, text: String) -> ActionResult {
+        let changed = self.buffer.text_area.insert_str(text);
+        ActionResult::consumed(changed)
+    }
+    fn select_all(&mut self) -> ActionResult {
+        self.buffer.text_area.select_all();
+        ActionResult::consumed(true)
+    }
+    fn handle_file_saved(&mut self, result: SaveFileResult) -> ActionResult {
+        if self.saving_file {
+            self.saving_file = false;
+            match result {
+                SaveFileResult::Saved(path) => {
+                    self.notification.notify_text("File saved");
+                    self.buffer.file_path = Some(path)
+                }
+                SaveFileResult::Error(error) => self.notification.notify_error(error),
+                SaveFileResult::MissingName => return self.open_file_dialog(SelectorType::NewFile),
+            };
+            ActionResult::consumed(true)
+        } else {
+            Default::default()
+        }
+    }
+    fn open_file_dialog(&mut self, selector_type: SelectorType) -> ActionResult {
+        self.file_dialog
+            .show(self.buffer.current_path(), selector_type);
+        ActionResult::consumed(true)
+    }
+
+    fn page_up(&mut self) -> ActionResult {
+        self.buffer.text_area.move_cursor(CursorMove::Top);
+        ActionResult::consumed(true)
+    }
+
+    fn page_down(&mut self) -> ActionResult {
+        self.buffer.text_area.move_cursor(CursorMove::Down);
+        ActionResult::consumed(true)
+    }
+
+    fn move_next_word(&mut self) -> ActionResult {
+        self.buffer.text_area.move_cursor(CursorMove::WordForward);
+        ActionResult::consumed(true)
+    }
+
+    fn move_previous_word(&mut self) -> ActionResult {
+        self.buffer.text_area.move_cursor(CursorMove::WordBack);
+        ActionResult::consumed(true)
+    }
 }
 
-impl<'a> Component for EditorComponent<'a> {
+impl Component for EditorComponent<'_> {
     fn register_config(&mut self, config: &Config) {
         if let Some(event) = config
             .keybindings
@@ -269,54 +338,72 @@ impl<'a> Component for EditorComponent<'a> {
         {
             self.help_key = event.code.as_char();
         }
+        self.file_dialog.register_config(config);
         self.config = config.clone();
     }
-    fn set_action_sender(&mut self, sender: ActionSender) {
-        self.action_sender = Some(sender);
+    fn register_action_sender(&mut self, sender: ActionSender) {
+        self.action_sender = Some(sender.clone());
+        self.file_dialog.register_action_sender(sender);
+    }
+    fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
+        self.task_result_sender = Some(sender.clone());
+        self.file_dialog.register_async_action_sender(sender)
+    }
+    fn override_keybind_id(&self, key_event: KeyEvent) -> Option<&AppComponent> {
+        if let Some(a) = self.file_dialog.override_keybind_id(key_event) {
+            return Some(a);
+        };
+        Some(&AppComponent::Editor)
     }
     fn handle_action(&mut self, action: Action) -> ActionResult {
         let notification_res = self.notification.handle_action_ref(&action);
         if notification_res.is_consumed() {
             return notification_res;
         }
+        let file_dialog_res = self.file_dialog.handle_action(action.clone());
+        if file_dialog_res.is_consumed() {
+            return file_dialog_res;
+        }
         match action {
-            Action::Tick => {
-                return self.notification.handle_tick_action();
-            }
-            Action::Help => {
-                if self.help_component.is_some() {
-                    self.hide_help();
-                } else {
-                    self.show_help();
-                }
-                return ActionResult::consumed(true);
-            }
-            Action::LoadFileContents(string) => {
-                self.loading = false;
-                self.buffer.clear();
-                self.buffer.text_area.insert_str(string);
-                self.buffer.text_area.cancel_selection();
-                return ActionResult::Consumed { rerender: true };
-            }
-            Action::Insert => {
-                self.insert = true;
-                return ActionResult::Consumed { rerender: true };
-            }
+            Action::Tick => return self.notification.handle_tick_action(),
+            Action::Character(char) => return self.add_char(char),
+            Action::Backspace => return self.backspace(),
+            Action::NewLine => return self.new_line(),
+            Action::Tab => return self.tab(),
+            Action::Delete => return self.delete(),
+            Action::Help => return self.toggle_help(),
+            Action::Insert => return self.begin_insert_mode(),
             Action::Left => {
-                self.buffer.text_area.move_cursor(CursorMove::Back);
-                return ActionResult::Consumed { rerender: true };
+                self.stop_selection();
+                return self.move_cursor(CursorMove::Back);
+            }
+            Action::SelectLeft => {
+                self.start_selection();
+                return self.move_cursor(CursorMove::Back);
             }
             Action::Right => {
-                self.buffer.text_area.move_cursor(CursorMove::Forward);
-                return ActionResult::Consumed { rerender: true };
+                self.stop_selection();
+                return self.move_cursor(CursorMove::Forward);
+            }
+            Action::SelectRight => {
+                self.start_selection();
+                return self.move_cursor(CursorMove::Forward);
             }
             Action::Up => {
-                self.buffer.text_area.move_cursor(CursorMove::Up);
-                return ActionResult::Consumed { rerender: true };
+                self.stop_selection();
+                return self.move_cursor(CursorMove::Up);
+            }
+            Action::SelectUp => {
+                self.start_selection();
+                return self.move_cursor(CursorMove::Up);
             }
             Action::Down => {
-                self.buffer.text_area.move_cursor(CursorMove::Down);
-                return ActionResult::Consumed { rerender: true };
+                self.stop_selection();
+                return self.move_cursor(CursorMove::Down);
+            }
+            Action::SelectDown => {
+                self.start_selection();
+                return self.move_cursor(CursorMove::Down);
             }
             Action::Cancel => {
                 if self.buffer.text_area.is_selecting() {
@@ -328,40 +415,12 @@ impl<'a> Component for EditorComponent<'a> {
                     return ActionResult::Consumed { rerender: true };
                 }
             }
-            Action::Copy => {
-                self.buffer.text_area.copy();
-                let yanked = self.buffer.text_area.yank_text();
-                if yanked.is_empty() {
-                    return ActionResult::Consumed { rerender: true };
-                }
-                match self.buffer.push_to_clipboard(yanked) {
-                    Ok(_) => self.notification.notify_text("Copied"),
-                    Err(e) => self.notification.notify_error(e),
-                }
-                return ActionResult::Consumed { rerender: true };
-            }
-            Action::Cut => {
-                self.buffer.text_area.cut();
-                let yanked = self.buffer.text_area.yank_text();
-                self.buffer.text_area.cancel_selection();
-                if yanked.is_empty() {
-                    return ActionResult::Consumed { rerender: true };
-                }
-                match self.buffer.push_to_clipboard(yanked) {
-                    Ok(_) => self.notification.notify_text("Cut"),
-                    Err(e) => self.notification.notify_error(e),
-                }
-                return ActionResult::consumed(true);
-            }
-            Action::SelectAll => {
-                self.buffer.text_area.select_all();
-                return ActionResult::consumed(true);
-            }
-            Action::Save => {
-                if self.save_file() {
-                    return ActionResult::consumed(true);
-                }
-            }
+            Action::Copy => return self.copy_selection(),
+            Action::Paste => return self.paste_text_from_clipboard(),
+            Action::PasteText(text) => return self.paste_text(text),
+            Action::Cut => return self.cut_selection(),
+            Action::SelectAll => return self.select_all(),
+            Action::Save => return self.save_file(),
             Action::Redo => {
                 if self.buffer.text_area.redo() {
                     return ActionResult::consumed(true);
@@ -372,53 +431,34 @@ impl<'a> Component for EditorComponent<'a> {
                     return ActionResult::consumed(true);
                 }
             }
-            Action::SavedFile(result) => {
-                if self.saving_file {
-                    self.saving_file = false;
-                    match result {
-                        SaveFileResult::Saved(path) => {
-                            self.notification.notify_text("File saved");
-                            self.buffer.file_path = Some(path)
-                        }
-                        SaveFileResult::Error(error) => {
-                            self.notification.notify_error(error);
-                        }
-                        SaveFileResult::MissingName => self.creating_file_name = true,
-                    }
-                    return ActionResult::consumed(true);
-                }
+            Action::Return => {
+                let _ = self
+                    .task_result_sender
+                    .as_ref()
+                    .unwrap()
+                    .send(AsyncAction::Navigate(None));
             }
-            Action::Return => self
-                .action_sender
-                .as_ref()
-                .unwrap()
-                .send(Action::Navigate(None))
-                .unwrap(),
-            Action::Error(msg) => self.notification.notify_error(msg),
+            Action::OpenFile => return self.open_file_dialog(SelectorType::PickFile),
+            Action::PageUp => return self.page_up(),
+            Action::PageDown => return self.page_down(),
+            Action::EndOfWord => return self.move_next_word(),
+            Action::StartOfWord => return self.move_previous_word(),
             _ => {}
         };
         Default::default()
     }
-    fn handle_key_event(&mut self, key_event: KeyEvent) -> ActionResult {
-        if self.handle_shift_key_event(key_event) || self.handle_ctrl_key_event(key_event) {
-            return ActionResult::Consumed { rerender: true };
-        }
-        if !self.insert {
-            if self
-                .config
-                .keybindings
-                .get_action(AppComponent::Editor, key_event)
-                .is_none()
-            {
-                let r = self.handle_normal_key_event(key_event);
-                if r.is_consumed() {
-                    self.insert = true;
-                }
-                return r;
+    fn handle_async_action(&mut self, action: AsyncAction) -> ActionResult {
+        match action {
+            AsyncAction::LoadFileContents(string) => return self.load_file_contents(string),
+            AsyncAction::SavedFile(result) => return self.handle_file_saved(result),
+            AsyncAction::Error(msg) => {
+                self.notification.notify_error(msg);
+                return ActionResult::consumed(true);
             }
-            return Default::default();
-        };
-        self.handle_normal_key_event(key_event)
+            AsyncAction::SelectPath(path, selector) => return self.handle_selector(path, selector),
+            _ => {}
+        }
+        Default::default()
     }
     fn init(&mut self) {
         self.load_file();
@@ -430,8 +470,8 @@ impl<'a> Component for EditorComponent<'a> {
         let mode_title = if self.insert { " Insert " } else { " Normal " };
         let help_title = format!(" [{}] Help ", self.help_key.unwrap_or(' '));
         let help_title = Line::from(help_title).right_aligned();
-        block = block.title_bottom(help_title);
         let mode_title = Line::raw(mode_title).left_aligned();
+        block = block.title_bottom(help_title);
         block = block.title_bottom(mode_title);
         if let Some(file_path) = self.buffer.file_path() {
             let file_path_title = format!(" {} ", file_path);
@@ -465,5 +505,6 @@ impl<'a> Component for EditorComponent<'a> {
         } else {
             frame.render_widget(&self.buffer.text_area, block_area);
         }
+        self.file_dialog.render(frame, area);
     }
 }

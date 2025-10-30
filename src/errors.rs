@@ -3,6 +3,7 @@ use std::env;
 use color_eyre::Result;
 
 pub fn init() -> Result<()> {
+    better_panic::install();
     let (panic_hook, eyre_hook) = color_eyre::config::HookBuilder::default()
         .panic_section(format!(
             "This is a bug. Consider reporting it at {}",

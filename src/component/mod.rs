@@ -1,11 +1,12 @@
 mod component_utils;
 mod editor;
+mod file_selector;
 mod help;
 mod home;
 pub(crate) mod navigator;
 mod notification;
 
-use crate::action::{Action, ActionResult, ActionSender};
+use crate::action::{Action, ActionResult, ActionSender, AsyncAction, AsyncActionSender};
 use crate::config::Config;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::layout::Rect;
@@ -19,10 +20,10 @@ const TICKS_UNTIL_REMOVE_POPUP: usize = 2;
 pub enum AppComponent {
     #[default]
     HomeScreen,
-    FileTree,
     OpenedEditor(String),
+    FileDialog,
     Editor,
-    Dialogs,
+    Global,
 }
 
 #[derive(Debug)]
@@ -47,14 +48,12 @@ impl<T> TickCount<T> {
             count: TICKS_UNTIL_REMOVE_POPUP,
         }
     }
-
     pub fn new_with_ticks(value: T, ticks: usize) -> Self {
         Self {
             value,
             count: ticks,
         }
     }
-
     pub fn countdown(&mut self) -> bool {
         if self.count == 0 {
             true
@@ -84,26 +83,36 @@ pub trait Component {
     fn register_config(&mut self, config: &Config) {
         let _ = config;
     }
-    /// Register and `ActionSender` to the component, to be received by currently visible
+    /// Register an `ActionSender` to the component, to be received by currently visible
     /// components and updated.
-    fn set_action_sender(&mut self, sender: ActionSender) {
+    fn register_action_sender(&mut self, sender: ActionSender) {
         let _ = sender;
+    }
+    /// Register `AsyncActionSender` to the component, to send asynchronous task results.
+    fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
+        let _ = sender;
+    }
+    /// Forces the key event handler to get a key bind from another component
+    fn override_keybind_id(&self, key_event: KeyEvent) -> Option<&AppComponent> {
+        let _ = key_event;
+        None
     }
     /// Handles the action and update this state
     ///
     /// Return `ActionResult::Consumed` to stop passing the action to other components,
     /// or `ActionResult::NotConsumed` to continue.
     ///
-    /// The terminal will automatically rerender itself if `ActionResult::Consumed` is returned
-    /// or `ActionResult::NotConsumed.rerender` is true.
+    /// The terminal will rerender itself if `ActionResult::should_rerender` returns true,
+    /// so it should be true only if the component state has changed.
     fn handle_action(&mut self, action: Action) -> ActionResult {
         let _ = action;
         ActionResult::default()
     }
-    /// Handles `KeyEvent` before they become an `Action` and sent to `handle_action`.
-    /// If this returns `ActionResult::Consumed`, `handle_action` is not called.
-    fn handle_key_event(&mut self, key_event: KeyEvent) -> ActionResult {
-        let _ = key_event;
+    /// Handles the async action created by the component itself, or it parents.
+    ///
+    /// This has the same behavior as `handle_action`
+    fn handle_async_action(&mut self, action: AsyncAction) -> ActionResult {
+        let _ = action;
         ActionResult::default()
     }
     /// Handles the mouse action and update this state

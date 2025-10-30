@@ -1,4 +1,4 @@
-use crate::action::{Action, ActionResult, ActionSender};
+use crate::action::{Action, ActionResult, ActionSender, AsyncAction, AsyncActionSender};
 use crate::component::editor::EditorComponent;
 use crate::component::home::HomeComponent;
 use crate::component::{AppComponent, Component};
@@ -12,6 +12,7 @@ pub struct NavigatorComponent {
     pub previous_component: Option<AppComponent>,
     component: Box<dyn Component>,
     action_sender: Option<ActionSender>,
+    async_action_sender: Option<AsyncActionSender>,
     config: Config,
 }
 
@@ -19,25 +20,22 @@ impl NavigatorComponent {
     pub fn new() -> Self {
         Self::new_with_starting_component(AppComponent::default())
     }
-
     pub fn new_with_starting_component(app_component: AppComponent) -> Self {
-        let (app_comp, comp) = Self::set_component(app_component);
+        let (app_comp, comp) = Self::component_from_app_component(app_component);
         Self {
             component: comp,
             current_component: app_comp,
             previous_component: None,
             action_sender: None,
+            async_action_sender: None,
             config: Config::default(),
         }
     }
-
     pub fn navigate(&mut self, app_component: AppComponent) {
-        if self.current_component == app_component {
-            return;
+        if self.current_component != app_component {
+            self.switch_screen(app_component);
         }
-        self.switch_screen(app_component);
     }
-
     pub fn return_last_component(&mut self) -> bool {
         if let Some(previous_component) = self.previous_component.take() {
             self.switch_screen(previous_component);
@@ -49,31 +47,27 @@ impl NavigatorComponent {
             false
         }
     }
-
     fn switch_screen(&mut self, app_component: AppComponent) {
         self.component.exit();
-        let (app_comp, comp) = Self::set_component(app_component);
+        let (app_comp, comp) = Self::component_from_app_component(app_component);
         self.current_component = app_comp;
         self.component = comp;
         self.component.register_config(&self.config);
         self.component
-            .set_action_sender(self.action_sender.clone().unwrap());
+            .register_action_sender(self.action_sender.clone().unwrap());
+        self.component
+            .register_async_action_sender(self.async_action_sender.clone().unwrap());
         self.component.init();
     }
-
-    fn set_component(app_component: AppComponent) -> (AppComponent, Box<dyn Component>) {
+    fn component_from_app_component(
+        app_component: AppComponent,
+    ) -> (AppComponent, Box<dyn Component>) {
         match app_component {
-            AppComponent::HomeScreen => (app_component, Box::new(HomeComponent::new())),
-            AppComponent::FileTree => {
-                todo!()
-            }
             AppComponent::OpenedEditor(path) => {
                 (AppComponent::Editor, Box::new(EditorComponent::new(path)))
             }
             AppComponent::Editor => (app_component, Box::new(EditorComponent::default())),
-            AppComponent::Dialogs => {
-                todo!()
-            }
+            _ => (AppComponent::HomeScreen, Box::new(HomeComponent::new())),
         }
     }
 }
@@ -81,13 +75,24 @@ impl NavigatorComponent {
 impl Component for NavigatorComponent {
     fn register_config(&mut self, config: &Config) {
         self.config = config.clone();
+        self.component.register_config(config);
     }
-    fn set_action_sender(&mut self, sender: ActionSender) {
-        self.component.set_action_sender(sender.clone());
+    fn register_action_sender(&mut self, sender: ActionSender) {
+        self.component.register_action_sender(sender.clone());
         self.action_sender = Some(sender);
     }
+    fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
+        self.async_action_sender = Some(sender.clone());
+        self.component.register_async_action_sender(sender)
+    }
+    fn override_keybind_id(&self, key_event: KeyEvent) -> Option<&AppComponent> {
+        self.component.override_keybind_id(key_event)
+    }
     fn handle_action(&mut self, action: Action) -> ActionResult {
-        if let Action::Navigate(comp) = action {
+        self.component.handle_action(action)
+    }
+    fn handle_async_action(&mut self, action: AsyncAction) -> ActionResult {
+        if let AsyncAction::Navigate(comp) = action {
             if let Some(component) = comp {
                 self.navigate(component)
             } else if !self.return_last_component()
@@ -98,10 +103,7 @@ impl Component for NavigatorComponent {
             }
             return ActionResult::consumed(true);
         }
-        self.component.handle_action(action)
-    }
-    fn handle_key_event(&mut self, key_event: KeyEvent) -> ActionResult {
-        self.component.handle_key_event(key_event)
+        self.component.handle_async_action(action)
     }
     fn handle_mouse_event(&mut self, mouse_event: MouseEvent) -> ActionResult {
         self.component.handle_mouse_event(mouse_event)

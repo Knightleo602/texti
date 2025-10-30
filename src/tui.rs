@@ -48,10 +48,11 @@ impl Tui {
 
     pub fn enter(&mut self) -> Result<()> {
         crossterm::terminal::enable_raw_mode()?;
-        crossterm::execute!(stdout(), EnableBracketedPaste)?;
-        crossterm::execute!(stdout(), EnterAlternateScreen, cursor::Hide)?;
+        let mut stdout = stdout();
+        crossterm::execute!(stdout, EnableBracketedPaste)?;
+        crossterm::execute!(stdout, EnterAlternateScreen, cursor::Hide)?;
         crossterm::execute!(
-            stdout(),
+            stdout,
             PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
         )?;
         self.start_receiving_events();

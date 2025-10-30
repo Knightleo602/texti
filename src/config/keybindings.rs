@@ -21,9 +21,9 @@ impl Keybindings {
     pub fn with(map: ScreenMap) -> Self {
         Self { map }
     }
-    pub fn get_action(&self, app_component: AppComponent, key: KeyEvent) -> Option<Action> {
+    pub fn get_action(&self, app_component: &AppComponent, key: KeyEvent) -> Option<Action> {
         self.map
-            .get(&app_component)
+            .get(app_component)
             .and_then(|map| map.get(&key))
             .cloned()
     }

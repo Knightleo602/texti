@@ -1,46 +1,67 @@
 use crate::component::AppComponent;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use strum::{Display, EnumDiscriminants};
+use strum::Display;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 pub type ActionSender = UnboundedSender<Action>;
 pub type ActionReceiver = UnboundedReceiver<Action>;
+pub type AsyncActionSender = UnboundedSender<AsyncAction>;
+pub type AsyncActionReceiver = UnboundedReceiver<AsyncAction>;
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SaveFileResult {
     Saved(PathBuf),
     Error(String),
     MissingName,
 }
 
-/// An Action to be performed on the application
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Display)]
+pub enum SelectorType {
+    #[strum(to_string = " Pick Directory ")]
+    PickFolder,
+    #[strum(to_string = " Open File ")]
+    #[default]
+    PickFile,
+    #[strum(to_string = " New File ")]
+    NewFile,
+}
+
+impl SelectorType {
+    pub fn show_files(&self) -> bool {
+        self == &SelectorType::PickFile
+    }
+    pub fn can_pick_folder(&self) -> bool {
+        self != &SelectorType::PickFile
+    }
+}
+
+/// A user created action to be performed on the application
 ///
-/// This can be action given by the user (via key events) or from the
-/// program itself (when communicating asynchronously for example).
+/// This is the action performed by the user via key events, depending on the keybind configuration
 ///
 /// The only `Action` that is called automatically is `Action::Tick`, which is sent
 /// on every tick.
 ///
-/// Every action that is handled should hav an appropriate `ActionResult`, which helps
+/// Every action that is handled have an appropriate `ActionResult`, which helps
 /// parent components know if the action should be consumed or passed on to other components, and
 /// also to the application itself for deciding if the ui should be rerendered or not.
 ///
 /// Generally, if the state of the component has been updated, it should rerender the terminal.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, EnumDiscriminants, Display)]
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq, Display)]
 pub enum Action {
-    LoadFileContents(String),
-    PasteEvent(String),
+    Character(char),
+    PasteText(String),
     Save,
-    SavedFile(SaveFileResult),
-    /// Navigate to a component representing `AppComponent`, or return if its `None`
-    Navigate(Option<AppComponent>),
-    Error(String),
     Tick,
     Up,
     Down,
     Left,
     Right,
+    SelectUp,
+    SelectDown,
+    SelectLeft,
+    SelectRight,
     Confirm,
     Cancel,
     SelectAll,
@@ -48,11 +69,40 @@ pub enum Action {
     Cut,
     Copy,
     Insert,
+    Backspace,
+    Search,
+    NewLine,
     Help,
     Return,
     Undo,
     Redo,
     Quit,
+    Tab,
+    Delete,
+    OpenFile,
+    Select,
+    PageDown,
+    PageUp,
+    EndOfWord,
+    StartOfWord,
+}
+
+/// Application created actions. Usually by separate tasks that have been created by `Action`s
+///
+/// These are used for the program to communicate with itself asynchronously, for example,
+/// when finishing reading the file contents and rendering it to the screen, or after saving the
+/// file contents.
+///
+/// This is separate from `Action` because they should not be able to be set to a specific keybind
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AsyncAction {
+    LoadFileContents(String),
+    SavedFile(SaveFileResult),
+    /// Navigate to a component representing `AppComponent`, or return from the current one if its `None`
+    Navigate(Option<AppComponent>),
+    SelectPath(PathBuf, SelectorType),
+    AvailablePath(Vec<String>),
+    Error(String),
 }
 
 impl Action {
@@ -81,9 +131,9 @@ impl ActionResult {
         matches!(self, Self::NotConsumed { .. })
     }
     pub fn should_rerender(&self) -> bool {
-        match *self {
-            ActionResult::Consumed { rerender } => rerender,
-            ActionResult::NotConsumed { rerender } => rerender,
+        match self {
+            ActionResult::Consumed { rerender } => *rerender,
+            ActionResult::NotConsumed { rerender } => *rerender,
         }
     }
     #[inline]

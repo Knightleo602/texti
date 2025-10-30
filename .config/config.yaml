@@ -12,10 +12,14 @@ keybindings:
     down: Down
     left: Left
     right: Right
-    shift-up: Up
-    shift-down: Down
-    shift-left: Left
-    shift-right: Right
+    shift-up: SelectUp
+    shift-down: SelectDown
+    shift-left: SelectLeft
+    shift-right: SelectRight
+    backspace: Backspace
+    delete: Delete
+    tab: Tab
+    enter: NewLine
     esc: Cancel
     ctrl-h: Help
     ctrl-i: Insert
@@ -28,5 +32,25 @@ keybindings:
     ctrl-r: Return
     ctrl-z: Undo
     ctrl-shift-z: Redo
+    ctrl-p: OpenFile
+    ctrl-f: Search
+    alt-up: PageUp
+    pageup: PageUp
+    alt-down: PageDown
+    pagedown: PageDown
+    alt-left: StartOfWord
+    alt-right: EndOfWord
+  FileDialog:
+    up: Up
+    down: Down
+    left: Left
+    right: Right
+    enter: Confirm
+    ctrl-f: Search
+    ctrl-enter: Select
+    ctrl-v: Paste
+    backspace: Backspace
+    delete: Delete
+    esc: Cancel
 
 appconfig:
