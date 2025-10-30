@@ -1,4 +1,6 @@
-use crate::action::{Action, ActionResult, ActionSender, AsyncAction, AsyncActionSender};
+use crate::action::{
+    Action, ActionResult, ActionSender, AsyncAction, AsyncActionSender, SelectorType,
+};
 use crate::component::component_utils::{center_horizontally, default_block};
 use crate::component::file_selector::component::FileSelectorComponent;
 use crate::component::{AppComponent, Component};
@@ -8,6 +10,7 @@ use ratatui::layout::{Constraint, Direction, Flex, Layout, Rect};
 use ratatui::style::{Style, Stylize};
 use ratatui::text::Text;
 use ratatui::Frame;
+use std::env::current_dir;
 use strum::{EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 use tui_big_text::{BigText, PixelSize};
 
@@ -56,13 +59,24 @@ impl HomeComponent<'_> {
     fn send_async_action(&self, action: AsyncAction) {
         let _ = self.async_action_sender.as_ref().unwrap().send(action);
     }
+    fn open_file_picker(&mut self) {
+        self.file_selector_component
+            .show(current_dir().unwrap_or_default(), SelectorType::PickFile)
+    }
+    fn close_file_picker(&mut self) {
+        self.file_selector_component.hide();
+    }
 }
 
 impl Component for HomeComponent<'_> {
     fn register_action_sender(&mut self, sender: ActionSender) {
+        self.file_selector_component
+            .register_action_sender(sender.clone());
         self.action_sender = Some(sender);
     }
     fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
+        self.file_selector_component
+            .register_async_action_sender(sender.clone());
         self.async_action_sender = Some(sender)
     }
     fn override_keybind_id(&self, key_event: KeyEvent) -> Option<&AppComponent> {
@@ -120,6 +134,16 @@ impl Component for HomeComponent<'_> {
             }
             _ => {}
         };
+        Default::default()
+    }
+    fn handle_async_action(&mut self, action: AsyncAction) -> ActionResult {
+        if let AsyncAction::SelectPath(path, _) = action {
+            let path = path.display().to_string();
+            let editor = AppComponent::OpenedEditor(path);
+            let action = AsyncAction::Navigate(Some(editor));
+            let _ = self.async_action_sender.as_ref().unwrap().send(action);
+            return ActionResult::consumed(false);
+        }
         Default::default()
     }
     fn render(&mut self, frame: &mut Frame, area: Rect) {

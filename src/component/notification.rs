@@ -17,6 +17,7 @@ pub struct NotificationComponent {
     notification: Option<Notification>,
 }
 
+#[allow(dead_code)]
 impl NotificationComponent {
     pub fn new(text: String, error: bool) -> Self {
         let notification = Notification {

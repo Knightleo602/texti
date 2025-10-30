@@ -83,10 +83,9 @@ impl App {
             return Ok(());
         };
         match event {
-            Event::Quit => self.should_quit = true,
             Event::Tick => self.action_sender.send(Action::Tick)?,
             Event::Render => self.render()?,
-            Event::Resize(_, _) => self.should_rerender = true,
+            Event::Resize => self.should_rerender = true,
             Event::Mouse(mouse_event) => self.handle_mouse_event(mouse_event)?,
             Event::Key(event) => self.handle_key_event(event)?,
             Event::Paste(text) => self.action_sender.send(Action::PasteText(text))?,

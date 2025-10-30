@@ -65,9 +65,6 @@ impl FileSelectorInput<'_> {
         }
         false
     }
-    pub fn filter_active(&self) -> bool {
-        self.filter.is_some()
-    }
     pub fn handle_character(&mut self, character: char) -> bool {
         if let Some(text_area) = self.text_area.as_mut() {
             text_area.insert_char(character);

@@ -15,9 +15,6 @@ pub struct Keybindings {
 }
 
 impl Keybindings {
-    pub fn new() -> Self {
-        Self::default()
-    }
     pub fn with(map: ScreenMap) -> Self {
         Self { map }
     }

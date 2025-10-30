@@ -41,6 +41,7 @@ where
     }
 }
 
+#[allow(dead_code)]
 impl<T> TickCount<T> {
     pub fn new(value: T) -> Self {
         Self {

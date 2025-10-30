@@ -101,7 +101,6 @@ pub enum AsyncAction {
     /// Navigate to a component representing `AppComponent`, or return from the current one if its `None`
     Navigate(Option<AppComponent>),
     SelectPath(PathBuf, SelectorType),
-    AvailablePath(Vec<String>),
     Error(String),
 }
 
@@ -120,6 +119,7 @@ pub enum ActionResult {
     NotConsumed { rerender: bool },
 }
 
+#[allow(dead_code)]
 impl ActionResult {
     pub fn is_consumed(&self) -> bool {
         matches!(self, Self::Consumed { .. })

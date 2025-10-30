@@ -15,7 +15,7 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::text::Line;
 use ratatui::Frame;
 use std::env::current_dir;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use throbber_widgets_tui::{Throbber, BRAILLE_SIX_DOUBLE};
 use tui_textarea::{CursorMove, TextArea};
 
@@ -104,6 +104,17 @@ pub struct EditorComponent<'a> {
     notification: NotificationComponent,
     help_component: Option<HelpComponent>,
     file_dialog: FileSelectorComponent<'a>,
+}
+
+impl<P: AsRef<Path>> From<P> for EditorComponent<'_> {
+    fn from(value: P) -> Self {
+        let path = PathBuf::from(value.as_ref());
+        let buffer = Buffer::new(Some(path));
+        Self {
+            buffer,
+            ..Default::default()
+        }
+    }
 }
 
 impl EditorComponent<'_> {

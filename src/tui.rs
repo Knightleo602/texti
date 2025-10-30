@@ -63,12 +63,9 @@ impl Tui {
         self.stop_receiving_events()?;
         if crossterm::terminal::is_raw_mode_enabled()? {
             self.terminal.flush()?;
-            crossterm::terminal::disable_raw_mode()?;
+            crossterm::terminal::disable_raw_mode()?
         }
-        crossterm::execute!(stdout(), DisableBracketedPaste)?;
-        crossterm::execute!(stdout(), LeaveAlternateScreen, cursor::Show)?;
-        crossterm::execute!(stdout(), PopKeyboardEnhancementFlags)?;
-        Ok(())
+        exit_tui()
     }
 
     fn start_receiving_events(&mut self) {
@@ -122,7 +119,7 @@ impl Tui {
                     Some(Ok(event)) => match event {
                         CrosstermEvent::Key(key) if key.kind == KeyEventKind::Press => Event::Key(key),
                         CrosstermEvent::Mouse(mouse) => Event::Mouse(mouse),
-                        CrosstermEvent::Resize(x, y) => Event::Resize(x, y),
+                        CrosstermEvent::Resize(_, _) => Event::Resize,
                         CrosstermEvent::Paste(s) => Event::Paste(s),
                         _ => continue, // ignore other events
                     }
@@ -157,4 +154,14 @@ impl Drop for Tui {
     fn drop(&mut self) {
         self.exit().unwrap();
     }
+}
+
+pub fn exit_tui() -> Result<()> {
+    if crossterm::terminal::is_raw_mode_enabled()? {
+        crossterm::terminal::disable_raw_mode()?;
+    }
+    crossterm::execute!(stdout(), DisableBracketedPaste)?;
+    crossterm::execute!(stdout(), LeaveAlternateScreen, cursor::Show)?;
+    crossterm::execute!(stdout(), PopKeyboardEnhancementFlags)?;
+    Ok(())
 }
