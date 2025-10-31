@@ -21,6 +21,7 @@ pub struct App {
     async_action_receiver: AsyncActionReceiver,
     component: NavigatorComponent,
     should_rerender: bool,
+    running_animation: bool,
 }
 
 impl App {
@@ -53,6 +54,7 @@ impl App {
             async_action_sender: async_action_tx,
             component: app_component,
             should_rerender: true,
+            running_animation: false,
         })
     }
 
@@ -110,7 +112,17 @@ impl App {
     }
     fn handle_async_action(&mut self) -> Result<()> {
         while let Ok(action) = self.async_action_receiver.try_recv() {
-            let res = self.component.handle_async_action(action);
+            let res = match action {
+                AsyncAction::StartAnimation => {
+                    self.running_animation = true;
+                    continue;
+                }
+                AsyncAction::StopAnimation => {
+                    self.running_animation = false;
+                    continue;
+                }
+                _ => self.component.handle_async_action(action),
+            };
             self.flag_for_rerender_if_asked(res)
         }
         Ok(())
@@ -141,7 +153,7 @@ impl App {
         };
     }
     fn render(&mut self) -> Result<()> {
-        if self.should_rerender {
+        if self.should_rerender || self.running_animation {
             self.tui
                 .terminal
                 .draw(|frame| self.component.render(frame, frame.area()))?;

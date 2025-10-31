@@ -2,9 +2,12 @@ use crate::action::{Action, ActionResult, ActionSender, AsyncAction, AsyncAction
 use crate::component::editor::EditorComponent;
 use crate::component::home::HomeComponent;
 use crate::component::{AppComponent, Component};
+use crate::config::effects_config::{slide_in_effect, EffectRunner};
 use crate::config::Config;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::layout::Rect;
+use ratatui::style::{Color, Stylize};
+use ratatui::widgets::Block;
 use ratatui::Frame;
 
 pub struct NavigatorComponent {
@@ -13,6 +16,7 @@ pub struct NavigatorComponent {
     component: Box<dyn Component>,
     action_sender: Option<ActionSender>,
     async_action_sender: Option<AsyncActionSender>,
+    effect_runner: EffectRunner,
     config: Config,
 }
 
@@ -29,6 +33,7 @@ impl NavigatorComponent {
             action_sender: None,
             async_action_sender: None,
             config: Config::default(),
+            effect_runner: EffectRunner::default(),
         }
     }
     pub fn navigate(&mut self, app_component: AppComponent) {
@@ -48,15 +53,18 @@ impl NavigatorComponent {
         }
     }
     fn switch_screen(&mut self, app_component: AppComponent) {
+        self.effect_runner.add_effect(slide_in_effect());
+        let async_action_sender = self.async_action_sender.clone().unwrap();
+        let _ = async_action_sender.send(AsyncAction::StartAnimation);
         self.component.exit();
         let (app_comp, comp) = Self::component_from_app_component(app_component);
         self.current_component = app_comp;
         self.component = comp;
         self.component.register_config(&self.config);
+        let action_sender = self.action_sender.as_ref().unwrap();
+        self.component.register_action_sender(action_sender.clone());
         self.component
-            .register_action_sender(self.action_sender.clone().unwrap());
-        self.component
-            .register_async_action_sender(self.async_action_sender.clone().unwrap());
+            .register_async_action_sender(async_action_sender);
         self.component.init();
     }
     fn component_from_app_component(
@@ -83,6 +91,7 @@ impl Component for NavigatorComponent {
     }
     fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
         self.async_action_sender = Some(sender.clone());
+        self.effect_runner.register_async_sender(sender.clone());
         self.component.register_async_action_sender(sender)
     }
     fn override_keybind_id(&self, key_event: KeyEvent) -> Option<&AppComponent> {
@@ -116,6 +125,9 @@ impl Component for NavigatorComponent {
         self.component.exit();
     }
     fn render(&mut self, frame: &mut Frame, area: Rect) {
+        let block = Block::default().bg(Color::from_u32(0x1d2021));
+        frame.render_widget(block, area);
         self.component.render(frame, area);
+        self.effect_runner.process(frame.buffer_mut(), area);
     }
 }

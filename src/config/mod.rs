@@ -10,6 +10,7 @@ use std::env;
 use std::path::PathBuf;
 
 mod app_config;
+pub(crate) mod effects_config;
 mod keybindings;
 
 const CONFIG_FILE_NAME: &str = "config.yaml";

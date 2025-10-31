@@ -102,6 +102,8 @@ pub enum AsyncAction {
     Navigate(Option<AppComponent>),
     SelectPath(PathBuf, SelectorType),
     Error(String),
+    StartAnimation,
+    StopAnimation,
 }
 
 impl Action {
