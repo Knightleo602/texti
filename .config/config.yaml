@@ -29,7 +29,7 @@ keybindings:
     ctrl-x: Cut
     ctrl-c: Copy
     ctrl-v: Paste
-    ctrl-r: Return
+    ctrl-e: Return
     ctrl-z: Undo
     ctrl-shift-z: Redo
     ctrl-p: OpenFile

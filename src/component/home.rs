@@ -8,7 +8,7 @@ use crate::config::get_config_file_dir;
 use crossterm::event::KeyEvent;
 use ratatui::layout::{Alignment, Constraint, Direction, Flex, Layout, Rect};
 use ratatui::style::{Style, Stylize};
-use ratatui::text::Text;
+use ratatui::text::{Line, Text};
 use ratatui::widgets::{HighlightSpacing, List, ListDirection, ListItem, ListState};
 use ratatui::Frame;
 use std::env::current_dir;
@@ -153,7 +153,8 @@ impl Component for HomeComponent<'_> {
         Default::default()
     }
     fn render(&mut self, frame: &mut Frame, area: Rect) {
-        let block = default_block();
+        let block_title = Line::raw("   select ").centered();
+        let block = default_block().title_bottom(block_title);
         let block_area = block.inner(area);
         let center_horizontal_area = center_horizontally(block_area, Constraint::Percentage(25));
         frame.render_widget(block, area);
