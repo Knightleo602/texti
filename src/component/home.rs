@@ -6,9 +6,10 @@ use crate::component::file_selector::component::FileSelectorComponent;
 use crate::component::{AppComponent, Component};
 use crate::config::get_config_file_dir;
 use crossterm::event::KeyEvent;
-use ratatui::layout::{Constraint, Direction, Flex, Layout, Rect};
+use ratatui::layout::{Alignment, Constraint, Direction, Flex, Layout, Rect};
 use ratatui::style::{Style, Stylize};
 use ratatui::text::Text;
+use ratatui::widgets::{HighlightSpacing, List, ListDirection, ListItem, ListState};
 use ratatui::Frame;
 use std::env::current_dir;
 use strum::{EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
@@ -30,7 +31,7 @@ enum HomeOptions {
 
 #[derive(Default)]
 pub struct HomeComponent<'a> {
-    selected_option: Option<usize>,
+    list_state: ListState,
     action_sender: Option<ActionSender>,
     async_action_sender: Option<AsyncActionSender>,
     file_selector_component: FileSelectorComponent<'a>,
@@ -63,9 +64,6 @@ impl HomeComponent<'_> {
         self.file_selector_component
             .show(current_dir().unwrap_or_default(), SelectorType::PickFile)
     }
-    fn close_file_picker(&mut self) {
-        self.file_selector_component.hide();
-    }
 }
 
 impl Component for HomeComponent<'_> {
@@ -94,34 +92,34 @@ impl Component for HomeComponent<'_> {
         }
         match action {
             Action::Up => {
-                if let Some(index) = self.selected_option {
+                if let Some(index) = self.list_state.selected() {
                     if index > 0 {
-                        self.selected_option = Some(index - 1);
+                        self.list_state.select(Some(index - 1));
                         return ActionResult::consumed(true);
                     }
                 } else {
-                    self.selected_option = Some(HomeOptions::COUNT - 1);
+                    self.list_state.select(Some(HomeOptions::COUNT - 1));
                     return ActionResult::consumed(true);
                 }
             }
             Action::Down => {
-                if let Some(index) = self.selected_option {
+                if let Some(index) = self.list_state.selected() {
                     if index + 1 < HomeOptions::COUNT {
-                        self.selected_option = Some(index + 1);
+                        self.list_state.select(Some(index + 1));
                         return ActionResult::consumed(true);
                     }
                 } else {
-                    self.selected_option = Some(0);
+                    self.list_state.select(Some(0));
                     return ActionResult::consumed(true);
                 }
             }
             Action::Confirm => {
-                if let Some(index) = self.selected_option {
+                if let Some(index) = self.list_state.selected() {
                     let option = HomeOptions::iter().get(index).unwrap();
                     match option {
                         HomeOptions::NewFile => self.navigate_new_file(),
-                        HomeOptions::OpenFile => {}
-                        HomeOptions::FileHistory => {}
+                        HomeOptions::OpenFile => self.open_file_picker(),
+                        HomeOptions::FileHistory => return ActionResult::consumed(false),
                         HomeOptions::Quit => self.exit_program(),
                         HomeOptions::Config => self.navigate_to_config(),
                     }
@@ -129,8 +127,10 @@ impl Component for HomeComponent<'_> {
                 }
             }
             Action::Cancel => {
-                let taken = self.selected_option.take().is_some();
-                return ActionResult::consumed(taken);
+                if self.list_state.selected().is_some() {
+                    self.list_state.select(None);
+                    return ActionResult::consumed(true);
+                }
             }
             _ => {}
         };
@@ -166,15 +166,17 @@ impl Component for HomeComponent<'_> {
             .lines(vec!["Texti".into()])
             .build();
         frame.render_widget(title, title_area);
-        let options_constraints = [Constraint::Length(2); HomeOptions::COUNT];
-        let options: [Rect; HomeOptions::COUNT] =
-            Layout::vertical(options_constraints).areas(options_area);
-        for (i, option) in HomeOptions::iter().enumerate() {
-            let msg = option.get_str("title").unwrap();
-            let mut text = Text::raw(msg).centered();
-            let selected = self.selected_option.is_some_and(|o| o == i);
-            text = if selected { text.white() } else { text.gray() };
-            frame.render_widget(text, options[i]);
-        }
+        let options_items = HomeOptions::iter().map(move |v| {
+            let msg = v.get_str("title").unwrap().to_string();
+            let msg = format!("\n{}\n", msg);
+            let line = Text::from(msg).alignment(Alignment::Center).dark_gray();
+            ListItem::new(line)
+        });
+        let list = List::new(options_items)
+            .direction(ListDirection::TopToBottom)
+            .highlight_spacing(HighlightSpacing::Always)
+            .highlight_style(Style::new().white());
+        frame.render_stateful_widget(list, options_area, &mut self.list_state);
+        self.file_selector_component.render(frame, area);
     }
 }

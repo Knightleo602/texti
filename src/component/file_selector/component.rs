@@ -7,9 +7,9 @@ use crate::component::file_selector::PathChild;
 use crate::component::{AppComponent, Component};
 use crossterm::event::KeyEvent;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Stylize};
+use ratatui::style::{Color, Style, Stylize};
 use ratatui::text::{Line, Text};
-use ratatui::widgets::{Clear, List, ListDirection};
+use ratatui::widgets::{Clear, HighlightSpacing, List, ListDirection, ListState};
 use ratatui::Frame;
 use std::path::{Path, PathBuf};
 use tui_textarea::CursorMove;
@@ -24,7 +24,7 @@ pub struct FileSelectorComponent<'a> {
     filtered_paths: Option<Vec<PathChild>>,
     input: FileSelectorInput<'a>,
     visible: bool,
-    selected_index: Option<usize>,
+    list_state: ListState,
 }
 
 impl FileSelectorComponent<'_> {
@@ -38,6 +38,7 @@ impl FileSelectorComponent<'_> {
         let Ok(read_dir) = dir_path.read_dir() else {
             return;
         };
+        self.list_state.select(None);
         self.children.clear();
         self.children.push(PathChild::MoveUp);
         self.current_path = dir_path.to_path_buf();
@@ -47,7 +48,12 @@ impl FileSelectorComponent<'_> {
             let c = if path.is_dir() {
                 PathChild::Folder(name)
             } else if self.input.selector_type().show_files() {
-                PathChild::File(name)
+                let ext = path.extension().unwrap_or_default();
+                let ext = ext.to_string_lossy().to_string();
+                PathChild::File {
+                    full_file_name: name,
+                    extension: ext,
+                }
             } else {
                 continue;
             };
@@ -58,9 +64,10 @@ impl FileSelectorComponent<'_> {
     pub fn hide(&mut self) {
         self.visible = false;
         self.input.clear();
+        self.list_state = ListState::default();
     }
     fn select(&mut self, folder: bool) -> ActionResult {
-        let Some(index) = self.selected_index.take() else {
+        let Some(index) = self.list_state.selected() else {
             let path = if let Some(text_area) = self.input.current_text_area() {
                 self.current_path.join(text_area)
             } else {
@@ -75,7 +82,10 @@ impl FileSelectorComponent<'_> {
         };
         let can_pick_folder = folder && self.input.selector_type().can_pick_folder();
         let path = match child {
-            PathChild::File(f) => self.current_path.join(f),
+            PathChild::File {
+                full_file_name,
+                extension: _,
+            } => self.current_path.join(full_file_name),
             PathChild::Folder(f) => {
                 let path = self.current_path.join(f);
                 if !can_pick_folder {
@@ -100,6 +110,7 @@ impl FileSelectorComponent<'_> {
         let Some(filter) = self.input.current_filter() else {
             return ActionResult::consumed(false);
         };
+        let filter = filter.to_lowercase();
         self.filtered_paths = Some(
             self.children
                 .iter()
@@ -118,6 +129,14 @@ impl FileSelectorComponent<'_> {
     }
     fn handle_backspace(&mut self) -> ActionResult {
         if self.input.backspace() {
+            self.refresh_filtered_items();
+            return ActionResult::consumed(true);
+        }
+        Default::default()
+    }
+    fn handle_delete(&mut self) -> ActionResult {
+        if self.input.delete() {
+            self.refresh_filtered_items();
             return ActionResult::consumed(true);
         }
         Default::default()
@@ -134,16 +153,16 @@ impl FileSelectorComponent<'_> {
         ActionResult::consumed(true)
     }
     fn move_cursor_up(&mut self) -> ActionResult {
-        if let Some(index) = self.selected_index.as_mut() {
-            if *index == 0 {
+        if let Some(index) = self.list_state.selected() {
+            if index == 0 {
                 return ActionResult::consumed(false);
             };
-            *index -= 1;
+            self.list_state.select(Some(index - 1));
             return ActionResult::consumed(true);
         } else {
             let len = self.list_len();
             if len > 0 {
-                self.selected_index = Some(len - 1);
+                self.list_state.select(Some(len - 1));
                 return ActionResult::consumed(true);
             }
         }
@@ -151,14 +170,14 @@ impl FileSelectorComponent<'_> {
     }
     fn move_cursor_down(&mut self) -> ActionResult {
         let len = self.list_len();
-        if let Some(index) = self.selected_index.as_mut() {
-            if *index == len - 1 {
+        if let Some(index) = self.list_state.selected() {
+            if index == len - 1 {
                 return ActionResult::consumed(false);
             };
-            *index += 1;
+            self.list_state.select(Some(index + 1));
             return ActionResult::consumed(true);
         } else if len > 0 {
-            self.selected_index = Some(0);
+            self.list_state.select(Some(0));
             return ActionResult::consumed(true);
         }
         ActionResult::default()
@@ -168,7 +187,8 @@ impl FileSelectorComponent<'_> {
             self.refresh_filtered_items();
             return ActionResult::consumed(true);
         }
-        if self.selected_index.take().is_some() {
+        if self.list_state.selected().is_some() {
+            self.list_state.select(None);
             return ActionResult::consumed(true);
         }
         self.visible = false;
@@ -202,7 +222,7 @@ impl Component for FileSelectorComponent<'_> {
             Action::Cancel => return self.handle_cancel(),
             Action::Backspace => return self.handle_backspace(),
             Action::Search => return self.input.toggle_filter(),
-            Action::Delete => return self.input.delete(),
+            Action::Delete => return self.handle_delete(),
             Action::Character(char) => return self.handle_character(char),
             _ => {}
         }
@@ -214,22 +234,15 @@ impl Component for FileSelectorComponent<'_> {
             let path_line = Line::from(path_title).left_aligned();
             let block = default_block().title_bottom(path_line);
             let children = self.filtered_paths.as_ref().unwrap_or(&self.children);
-            let items = children.iter().enumerate().map(|(i, v)| {
-                let mut item = match v {
-                    PathChild::File(name) => Text::raw(name),
-                    PathChild::Folder(path) => Text::raw(path),
-                    PathChild::MoveUp => Text::raw("..."),
-                };
-                if self
-                    .selected_index
-                    .is_some_and(|selected_index| selected_index == i)
-                {
-                    item = item.bg(Color::White).fg(Color::Black);
-                }
-                item.alignment(Alignment::Center)
+            let items = children.iter().map(|v| {
+                let item: Text = v.into();
+                item.alignment(Alignment::Center).dark_gray()
             });
             let list = List::new(items)
                 .direction(ListDirection::TopToBottom)
+                .highlight_style(Style::default().fg(Color::White).italic())
+                .highlight_spacing(HighlightSpacing::Always)
+                .scroll_padding(3)
                 .block(block);
             let area = center_horizontally(area, Constraint::Percentage(70));
             let area = center_vertically(area, Constraint::Percentage(70));
@@ -239,7 +252,7 @@ impl Component for FileSelectorComponent<'_> {
                 .constraints([Constraint::Length(3), Constraint::Fill(1)])
                 .areas(area);
             self.input.render(frame, input_area);
-            frame.render_widget(list, list_area);
+            frame.render_stateful_widget(list, list_area, &mut self.list_state);
         }
     }
 }

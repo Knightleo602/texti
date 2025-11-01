@@ -6,7 +6,7 @@ use crossterm::event::KeyEvent;
 use ratatui::layout::Rect;
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Text, ToSpan};
-use ratatui::widgets::{Block, Paragraph, Wrap};
+use ratatui::widgets::{Block, Paragraph};
 use ratatui::Frame;
 use std::fmt::Display;
 
@@ -86,14 +86,14 @@ impl Component for HelpComponent {
         let mut line = Line::default();
         let len = self.keybinds.len();
         for (i, keybind) in self.keybinds.iter().enumerate() {
-            let key_text = format!("[{}] ", keybind.key).gray();
+            let key_text = format!("[{}] ", keybind.key).dark_gray();
             line += key_text;
-            line += keybind.label.to_span();
+            line += keybind.label.to_span().white();
             if i < len - 1 {
                 line += KEYBINDS_SEPARATOR.into()
             }
         }
-        let paragraph = Paragraph::new(line).block(block).wrap(Wrap { trim: false });
+        let paragraph = Paragraph::new(line).block(block);
         frame.render_widget(paragraph, area);
     }
 }

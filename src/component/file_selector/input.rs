@@ -49,13 +49,13 @@ impl FileSelectorInput<'_> {
         };
         None
     }
-    pub fn delete(&mut self) -> ActionResult {
+    pub fn delete(&mut self) -> bool {
         if let Some(text_area) = self.text_area.as_mut() {
-            return ActionResult::consumed(text_area.delete_next_char());
+            return text_area.delete_next_char();
         } else if let Some(text_area) = self.filter.as_mut() {
-            return ActionResult::consumed(text_area.delete_next_char());
+            return text_area.delete_next_char();
         }
-        ActionResult::default()
+        false
     }
     pub fn backspace(&mut self) -> bool {
         if let Some(text_area) = self.text_area.as_mut() {
@@ -71,7 +71,7 @@ impl FileSelectorInput<'_> {
             return true;
         } else if let Some(text_area) = self.filter.as_mut() {
             text_area.insert_char(character);
-            return false;
+            return true;
         }
         false
     }

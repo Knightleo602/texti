@@ -7,6 +7,7 @@ use crate::component::file_selector::component::FileSelectorComponent;
 use crate::component::help::{HelpComponent, KEYBINDS_HELP_TITLE};
 use crate::component::notification::NotificationComponent;
 use crate::component::{AppComponent, Component};
+use crate::config::keybindings::stringify_key_event;
 use crate::config::Config;
 use clipboard::{ClipboardContext, ClipboardProvider};
 use color_eyre::eyre::{eyre, Result};
@@ -100,7 +101,7 @@ pub struct EditorComponent<'a> {
     task_result_sender: Option<AsyncActionSender>,
     insert: bool,
     config: Config,
-    help_key: Option<char>,
+    help_key: String,
     notification: NotificationComponent,
     help_component: Option<HelpComponent>,
     file_dialog: FileSelectorComponent<'a>,
@@ -207,7 +208,7 @@ impl EditorComponent<'_> {
         ActionResult::consumed(true)
     }
     fn delete(&mut self) -> ActionResult {
-        if self.buffer.text_area.delete_char() {
+        if self.buffer.text_area.delete_next_char() {
             ActionResult::consumed(true)
         } else {
             ActionResult::not_consumed(false)
@@ -347,7 +348,7 @@ impl Component for EditorComponent<'_> {
             .keybindings
             .get_key_event_of_action(AppComponent::Editor, Action::Help)
         {
-            self.help_key = event.code.as_char();
+            self.help_key = stringify_key_event(event);
         }
         self.file_dialog.register_config(config);
         self.config = config.clone();
@@ -479,7 +480,7 @@ impl Component for EditorComponent<'_> {
         let file_title = Line::from(file_title).centered();
         let mut block = default_block().title_top(file_title);
         let mode_title = if self.insert { " Insert " } else { " Normal " };
-        let help_title = format!(" [{}] Help ", self.help_key.unwrap_or(' '));
+        let help_title = format!(" [{}] Help ", self.help_key);
         let help_title = Line::from(help_title).right_aligned();
         let mode_title = Line::raw(mode_title).left_aligned();
         block = block.title_bottom(help_title);
@@ -496,7 +497,7 @@ impl Component for EditorComponent<'_> {
         let block_area = if let Some(help_component) = &mut self.help_component {
             let [block_area, help_area] = Layout::default()
                 .direction(Direction::Vertical)
-                .constraints([Constraint::Fill(1), Constraint::Max(4)])
+                .constraints([Constraint::Fill(1), Constraint::Percentage(20)])
                 .areas(area);
             help_component.render(frame, help_area);
             frame.render_widget(&block, block_area);
@@ -505,7 +506,6 @@ impl Component for EditorComponent<'_> {
             frame.render_widget(&block, area);
             block.inner(area)
         };
-        self.notification.render(frame, block_area);
         let [block_area] = Layout::default()
             .constraints([Constraint::Fill(1)])
             .areas(block_area);
@@ -516,6 +516,7 @@ impl Component for EditorComponent<'_> {
         } else {
             frame.render_widget(&self.buffer.text_area, block_area);
         }
+        self.notification.render(frame, block_area);
         self.file_dialog.render(frame, area);
     }
 }
