@@ -1,10 +1,10 @@
 use crate::component::component_utils::default_block;
 use ratatui::prelude::Line;
-use ratatui::text::Text;
 use tui_textarea::TextArea;
 
 pub mod component;
 mod input;
+mod preview_component;
 
 pub(super) fn create_default_text_area(title: &'_ str) -> TextArea<'_> {
     let title = Line::raw(title).left_aligned();
@@ -36,6 +36,24 @@ impl PathChild {
             PathChild::MoveUp => true,
         }
     }
+
+    fn to_path_line(&self) -> String {
+        match self {
+            PathChild::File {
+                full_file_name,
+                extension,
+            } => {
+                let t = if let Some(icon) = icon_for_file(full_file_name, extension) {
+                    icon + " " + full_file_name
+                } else {
+                    full_file_name.to_string()
+                };
+                t
+            }
+            PathChild::Folder(path) => format!("\u{ea83} {}", path),
+            PathChild::MoveUp => "...".to_string(),
+        }
+    }
 }
 
 fn icon_for_file(file_name: &str, ext: &str) -> Option<String> {
@@ -54,24 +72,4 @@ fn icon_for_file(file_name: &str, ext: &str) -> Option<String> {
         }
     };
     Some(r.to_string())
-}
-
-impl From<&PathChild> for Text<'_> {
-    fn from(value: &PathChild) -> Self {
-        match value {
-            PathChild::File {
-                full_file_name,
-                extension,
-            } => {
-                let t = if let Some(icon) = icon_for_file(full_file_name, extension) {
-                    icon + " " + full_file_name
-                } else {
-                    full_file_name.to_string()
-                };
-                Text::from(t)
-            }
-            PathChild::Folder(path) => Text::from(format!("\u{ea83} {}", path)),
-            PathChild::MoveUp => Text::raw("..."),
-        }
-    }
 }

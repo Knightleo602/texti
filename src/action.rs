@@ -85,6 +85,9 @@ pub enum Action {
     PageUp,
     EndOfWord,
     StartOfWord,
+    TogglePreview,
+    ReloadPreview,
+    Resize(u16, u16),
 }
 
 /// Application created actions. Usually by separate tasks that have been created by `Action`s
@@ -97,6 +100,7 @@ pub enum Action {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AsyncAction {
     LoadFileContents(String),
+    PreviewContents(Option<String>),
     SavedFile(SaveFileResult),
     /// Navigate to a component representing `AppComponent`, or return from the current one if its `None`
     Navigate(Option<AppComponent>),

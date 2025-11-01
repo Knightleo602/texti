@@ -8,5 +8,5 @@ pub enum Event {
     Key(KeyEvent),
     Paste(String),
     Error(String),
-    Resize,
+    Resize(u16, u16),
 }

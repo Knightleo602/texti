@@ -87,7 +87,7 @@ impl App {
         match event {
             Event::Tick => self.action_sender.send(Action::Tick)?,
             Event::Render => self.render()?,
-            Event::Resize => self.should_rerender = true,
+            Event::Resize(x, y) => self.handle_resize(x, y),
             Event::Mouse(mouse_event) => self.handle_mouse_event(mouse_event)?,
             Event::Key(event) => self.handle_key_event(event)?,
             Event::Paste(text) => self.action_sender.send(Action::PasteText(text))?,
@@ -96,7 +96,10 @@ impl App {
         };
         Ok(())
     }
-
+    fn handle_resize(&mut self, width: u16, height: u16) {
+        let _ = self.action_sender.send(Action::Resize(width, height));
+        self.should_rerender = true
+    }
     fn handle_action(&mut self) -> Result<()> {
         while let Ok(action) = self.action_receiver.try_recv() {
             let res = match action {

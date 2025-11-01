@@ -137,6 +137,12 @@ impl Component for HomeComponent<'_> {
         Default::default()
     }
     fn handle_async_action(&mut self, action: AsyncAction) -> ActionResult {
+        let f = self
+            .file_selector_component
+            .handle_async_action(action.clone());
+        if f.is_consumed() {
+            return f;
+        }
         if let AsyncAction::SelectPath(path, _) = action {
             let path = path.display().to_string();
             let editor = AppComponent::OpenedEditor(path);

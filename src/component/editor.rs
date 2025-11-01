@@ -9,6 +9,7 @@ use crate::component::notification::NotificationComponent;
 use crate::component::{AppComponent, Component};
 use crate::config::keybindings::stringify_key_event;
 use crate::config::Config;
+use crate::util::read_dir;
 use clipboard::{ClipboardContext, ClipboardProvider};
 use color_eyre::eyre::{eyre, Result};
 use crossterm::event::KeyEvent;
@@ -135,22 +136,8 @@ impl EditorComponent<'_> {
         let path = path.clone();
         self.loading = true;
         tokio::spawn(async move {
-            if !path.exists() || path.is_dir() {
-                let _ = action_sender.send(AsyncAction::LoadFileContents(String::new()));
-                return;
-            }
-            let res = tokio::fs::read(path).await;
-            match res {
-                Ok(contents) => {
-                    let string = String::from_utf8(contents).unwrap();
-                    let action = AsyncAction::LoadFileContents(string);
-                    let _ = action_sender.send(action);
-                }
-                Err(err) => {
-                    let action = AsyncAction::Error(format!("{:?}", err));
-                    let _ = action_sender.send(action);
-                }
-            }
+            let action = read_dir(&path).await;
+            let _ = action_sender.send(action);
         });
     }
     fn handle_selector(&mut self, path_buf: PathBuf, selector_type: SelectorType) -> ActionResult {
@@ -460,6 +447,10 @@ impl Component for EditorComponent<'_> {
         Default::default()
     }
     fn handle_async_action(&mut self, action: AsyncAction) -> ActionResult {
+        let f = self.file_dialog.handle_async_action(action.clone());
+        if f.is_consumed() {
+            return f;
+        }
         match action {
             AsyncAction::LoadFileContents(string) => return self.load_file_contents(string),
             AsyncAction::SavedFile(result) => return self.handle_file_saved(result),

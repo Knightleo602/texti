@@ -52,5 +52,7 @@ keybindings:
     backspace: Backspace
     delete: Delete
     esc: Cancel
+    ctrl-p: TogglePreview
+    ctrl-r: ReloadPreview
 
 appconfig:

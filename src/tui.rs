@@ -119,7 +119,7 @@ impl Tui {
                     Some(Ok(event)) => match event {
                         CrosstermEvent::Key(key) if key.kind == KeyEventKind::Press => Event::Key(key),
                         CrosstermEvent::Mouse(mouse) => Event::Mouse(mouse),
-                        CrosstermEvent::Resize(_, _) => Event::Resize,
+                        CrosstermEvent::Resize(x, y) => Event::Resize(x, y),
                         CrosstermEvent::Paste(s) => Event::Paste(s),
                         _ => continue, // ignore other events
                     }
