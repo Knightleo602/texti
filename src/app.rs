@@ -66,7 +66,6 @@ impl App {
         self.component
             .register_async_action_sender(self.async_action_sender.clone());
         self.component.init();
-        self.render()?;
         loop {
             self.handle_event().await?;
             self.handle_action()?;
