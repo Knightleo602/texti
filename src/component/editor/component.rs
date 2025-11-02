@@ -5,6 +5,7 @@ use crate::action::{
 use crate::component::component_utils::{center, default_block, write_file};
 use crate::component::confirm_dialog::ConfirmDialogComponent;
 use crate::component::editor::buffer::Buffer;
+use crate::component::editor::search_box::SearchBoxComponent;
 use crate::component::file_selector::component::FileSelectorComponent;
 use crate::component::help::{HelpComponent, KEYBINDS_HELP_TITLE};
 use crate::component::notification::NotificationComponent;
@@ -36,6 +37,7 @@ pub struct EditorComponent<'a> {
     help_component: Option<HelpComponent>,
     file_dialog: FileSelectorComponent<'a>,
     confirm_dialog_component: ConfirmDialogComponent,
+    search_box_component: SearchBoxComponent<'a>,
 }
 
 impl<P: AsRef<Path>> From<P> for EditorComponent<'_> {
@@ -210,9 +212,9 @@ impl EditorComponent<'_> {
         let Some(contents) = self.buffer.get_from_clipboard() else {
             return ActionResult::consumed(false);
         };
-        self.paste_text(contents)
+        self.paste_text(&contents)
     }
-    fn paste_text(&mut self, text: String) -> ActionResult {
+    fn paste_text(&mut self, text: &str) -> ActionResult {
         let changed = self.buffer.text_area.insert_str(text);
         ActionResult::consumed(changed)
     }
@@ -283,6 +285,10 @@ impl EditorComponent<'_> {
         }
         ActionResult::consumed(true)
     }
+    fn begin_search(&mut self) -> ActionResult {
+        self.search_box_component.toggle();
+        ActionResult::consumed(true)
+    }
 }
 
 impl Component for EditorComponent<'_> {
@@ -309,7 +315,9 @@ impl Component for EditorComponent<'_> {
             .register_async_action_sender(sender.clone());
         self.confirm_dialog_component
             .register_async_action_sender(sender.clone());
-        self.file_dialog.register_async_action_sender(sender)
+        self.search_box_component
+            .register_async_action_sender(sender.clone());
+        self.file_dialog.register_async_action_sender(sender);
     }
     fn override_keybind_id(&self, key_event: KeyEvent) -> Option<&AppComponent> {
         if let Some(a) = self.file_dialog.override_keybind_id(key_event) {
@@ -320,22 +328,28 @@ impl Component for EditorComponent<'_> {
         };
         Some(&AppComponent::Editor)
     }
-    fn handle_action(&mut self, action: Action) -> ActionResult {
-        let notification_res = self.notification.handle_action_ref(&action);
-        if notification_res.is_consumed() {
-            return notification_res;
+    fn handle_action(&mut self, action: &Action) -> ActionResult {
+        let res = self.notification.handle_action(action);
+        if res.is_consumed() {
+            return res;
         }
-        let confirm_res = self.confirm_dialog_component.handle_action(action.clone());
-        if confirm_res.is_consumed() {
-            return confirm_res;
+        let res = self.confirm_dialog_component.handle_action(action);
+        if res.is_consumed() {
+            return res;
         }
-        let file_dialog_res = self.file_dialog.handle_action(action.clone());
-        if file_dialog_res.is_consumed() {
-            return file_dialog_res;
+        let res = self.file_dialog.handle_action(action);
+        if res.is_consumed() {
+            return res;
+        }
+        let res = self
+            .search_box_component
+            .handle_action(action, &mut self.buffer.text_area);
+        if res.is_consumed() {
+            return res;
         }
         match action {
             Action::Tick => return self.notification.handle_tick_action(),
-            Action::Character(char) => return self.add_char(char),
+            Action::Character(char) => return self.add_char(*char),
             Action::Backspace => return self.backspace(),
             Action::NewLine => return self.new_line(),
             Action::Tab => return self.tab(),
@@ -384,6 +398,7 @@ impl Component for EditorComponent<'_> {
                     return ActionResult::consumed(true);
                 }
             }
+            Action::Search => return self.begin_search(),
             Action::Copy => return self.copy_selection(),
             Action::Paste => return self.paste_text_from_clipboard(),
             Action::PasteText(text) => return self.paste_text(text),
@@ -418,19 +433,23 @@ impl Component for EditorComponent<'_> {
         };
         Default::default()
     }
-    fn handle_async_action(&mut self, action: AsyncAction) -> ActionResult {
-        let f = self.file_dialog.handle_async_action(action.clone());
+    fn handle_async_action(&mut self, action: &AsyncAction) -> ActionResult {
+        let f = self.file_dialog.handle_async_action(action);
         if f.is_consumed() {
             return f;
         }
         match action {
-            AsyncAction::LoadFileContents(string) => return self.load_file_contents(string),
-            AsyncAction::SavedFile(result) => return self.handle_file_saved(result),
+            AsyncAction::LoadFileContents(string) => {
+                return self.load_file_contents(string.clone());
+            }
+            AsyncAction::SavedFile(result) => return self.handle_file_saved(result.clone()),
             AsyncAction::Error(msg) => {
                 self.notification.notify_error(msg);
                 return ActionResult::consumed(true);
             }
-            AsyncAction::SelectPath(path, selector) => return self.handle_selector(path, selector),
+            AsyncAction::SelectPath(path, selector) => {
+                return self.handle_selector(path.clone(), *selector);
+            }
             _ => {}
         }
         Default::default()
@@ -479,6 +498,7 @@ impl Component for EditorComponent<'_> {
         } else {
             frame.render_widget(&self.buffer.text_area, block_area);
         }
+        self.search_box_component.render(frame, area);
         self.notification.render(frame, block_area);
         self.file_dialog.render(frame, area);
         self.confirm_dialog_component.render(frame, block_area);

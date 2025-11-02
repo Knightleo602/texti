@@ -77,7 +77,7 @@ impl Component for PreviewComponent {
     fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
         self.async_action_sender = Some(sender)
     }
-    fn handle_action(&mut self, action: Action) -> ActionResult {
+    fn handle_action(&mut self, action: &Action) -> ActionResult {
         match action {
             Action::TogglePreview => {
                 self.visible = !self.visible;
@@ -96,9 +96,9 @@ impl Component for PreviewComponent {
         Default::default()
     }
 
-    fn handle_async_action(&mut self, action: AsyncAction) -> ActionResult {
+    fn handle_async_action(&mut self, action: &AsyncAction) -> ActionResult {
         if let AsyncAction::PreviewContents(contents) = action {
-            self.contents = contents;
+            self.contents = contents.clone();
             return ActionResult::consumed(true);
         }
         Default::default()

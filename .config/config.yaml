@@ -35,10 +35,11 @@ keybindings:
     ctrl-v: Paste
     ctrl-w: Return
     ctrl-z: Undo
-    ctrl-shift-z: Redo
+    ctrl-r: Redo
     ctrl-o: OpenFile
     ctrl-f: Search
     ctrl-l: ToggleLineNumber
+    ctrl-y: ToggleSearchRegex
     alt-up: PageUp
     pageup: PageUp
     alt-down: PageDown

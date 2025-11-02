@@ -106,7 +106,7 @@ impl App {
                     self.should_quit = true;
                     return Ok(());
                 }
-                _ => self.component.handle_action(action),
+                _ => self.component.handle_action(&action),
             };
             self.flag_for_rerender_if_asked(res);
         }
@@ -124,7 +124,7 @@ impl App {
                     self.should_rerender = true;
                     continue;
                 }
-                _ => self.component.handle_async_action(action),
+                _ => self.component.handle_async_action(&action),
             };
             self.flag_for_rerender_if_asked(res)
         }

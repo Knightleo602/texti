@@ -61,7 +61,7 @@ impl Component for ConfirmDialogComponent {
         let _ = key_event;
         Some(&AppComponent::Dialog)
     }
-    fn handle_action(&mut self, action: Action) -> ActionResult {
+    fn handle_action(&mut self, action: &Action) -> ActionResult {
         if !self.visible() {
             return ActionResult::not_consumed(false);
         }

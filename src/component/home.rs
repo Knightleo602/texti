@@ -85,8 +85,8 @@ impl Component for HomeComponent<'_> {
             Some(&AppComponent::HomeScreen)
         }
     }
-    fn handle_action(&mut self, action: Action) -> ActionResult {
-        let r = self.file_selector_component.handle_action(action.clone());
+    fn handle_action(&mut self, action: &Action) -> ActionResult {
+        let r = self.file_selector_component.handle_action(action);
         if r.is_consumed() {
             return r;
         }
@@ -136,10 +136,8 @@ impl Component for HomeComponent<'_> {
         };
         Default::default()
     }
-    fn handle_async_action(&mut self, action: AsyncAction) -> ActionResult {
-        let f = self
-            .file_selector_component
-            .handle_async_action(action.clone());
+    fn handle_async_action(&mut self, action: &AsyncAction) -> ActionResult {
+        let f = self.file_selector_component.handle_async_action(action);
         if f.is_consumed() {
             return f;
         }

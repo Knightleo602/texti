@@ -7,7 +7,7 @@ authors = ["Knight Leo <knightleo602@gmail.com>"]
 repository = "https://github.com/Knightleo602/texti"
 
 [dependencies]
-clap = { version = "4.5.50", features = ["derive"] }
+clap = { version = "4.5.51", features = ["derive"] }
 config = { version = "0.15.18", default-features = false, features = ["yaml"] }
 crossterm = { version = "0.29.0", features = ["serde", "event-stream"] }
 directories = "6.0.0"
@@ -23,7 +23,8 @@ better-panic = "0.3.0"
 futures = "0.3.31"
 libc = "0.2.177"
 tui-big-text = "0.7.1"
-tui-textarea = "0.7.0"
+tui-textarea = { version = "0.7.0", features = ["search"] }
 clipboard = "0.5.0"
 throbber-widgets-tui = "0.9.0"
 tachyonfx = "0.20.1"
+regex = "1.12.2"

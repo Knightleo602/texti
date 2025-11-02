@@ -106,14 +106,14 @@ pub trait Component {
     ///
     /// The terminal will rerender itself if `ActionResult::should_rerender` returns true,
     /// so it should be true only if the component state has changed.
-    fn handle_action(&mut self, action: Action) -> ActionResult {
+    fn handle_action(&mut self, action: &Action) -> ActionResult {
         let _ = action;
         ActionResult::default()
     }
     /// Handles the async action created by the component itself, or it parents.
     ///
     /// This has the same behavior as `handle_action`
-    fn handle_async_action(&mut self, action: AsyncAction) -> ActionResult {
+    fn handle_async_action(&mut self, action: &AsyncAction) -> ActionResult {
         let _ = action;
         ActionResult::default()
     }

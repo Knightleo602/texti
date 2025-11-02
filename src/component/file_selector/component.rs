@@ -243,11 +243,11 @@ impl Component for FileSelectorComponent<'_> {
             None
         }
     }
-    fn handle_action(&mut self, action: Action) -> ActionResult {
+    fn handle_action(&mut self, action: &Action) -> ActionResult {
         if !self.visible {
             return Default::default();
         }
-        let p = self.preview_component.handle_action(action.clone());
+        let p = self.preview_component.handle_action(action);
         if p.is_consumed() {
             return p;
         }
@@ -262,12 +262,12 @@ impl Component for FileSelectorComponent<'_> {
             Action::Backspace => return self.handle_backspace(),
             Action::Search => return self.input.toggle_filter(),
             Action::Delete => return self.handle_delete(),
-            Action::Character(char) => return self.handle_character(char),
+            Action::Character(char) => return self.handle_character(*char),
             _ => {}
         }
         ActionResult::consumed(false)
     }
-    fn handle_async_action(&mut self, action: AsyncAction) -> ActionResult {
+    fn handle_async_action(&mut self, action: &AsyncAction) -> ActionResult {
         self.preview_component.handle_async_action(action)
     }
     fn render(&mut self, frame: &mut Frame, area: Rect) {
@@ -275,7 +275,7 @@ impl Component for FileSelectorComponent<'_> {
             let title = match self.input.selector_type() {
                 SelectorType::PickFolder => " Select Folder ",
                 SelectorType::PickFile => " Open file ",
-                SelectorType::NewFile => " Save file to ",
+                SelectorType::NewFile => " Save file ",
             };
             let title = Line::raw(title).centered();
             let path_title = format!(" {} ", self.current_path.to_str().unwrap_or("/"));

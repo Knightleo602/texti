@@ -71,7 +71,13 @@ impl NotificationComponent {
             Default::default()
         }
     }
-    pub fn handle_action_ref(&mut self, action: &Action) -> ActionResult {
+}
+
+impl Component for NotificationComponent {
+    fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
+        self.effect_runner.register_async_sender(sender)
+    }
+    fn handle_action(&mut self, action: &Action) -> ActionResult {
         match action {
             Action::Tick => self.handle_tick_action(),
             Action::Cancel => {
@@ -83,15 +89,6 @@ impl NotificationComponent {
             }
             _ => Default::default(),
         }
-    }
-}
-
-impl Component for NotificationComponent {
-    fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
-        self.effect_runner.register_async_sender(sender)
-    }
-    fn handle_action(&mut self, action: Action) -> ActionResult {
-        self.handle_action_ref(&action)
     }
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         if let Some(counter) = &self.notification {

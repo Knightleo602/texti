@@ -1,7 +1,7 @@
 use ratatui::prelude::Color;
 use ratatui::style::Style;
 use tachyonfx::fx::{
-    coalesce, coalesce_from, dissolve_to, evolve_into, fade_from, EvolveSymbolSet,
+    coalesce, coalesce_from, dissolve_to, evolve_into, EvolveSymbolSet,
 };
 use tachyonfx::pattern::{RadialPattern, SweepPattern};
 use tachyonfx::{Effect, Interpolation};
@@ -21,10 +21,6 @@ pub fn leave_effect() -> Effect {
     dissolve_to(Style::default(), 300).with_pattern(SweepPattern::left_to_right(15))
 }
 
-pub fn fade_from_effect() -> Effect {
-    fade_from(Color::Gray, Color::Gray, (1_000, Interpolation::SineIn))
-}
-
 pub fn dialog_enter(color: Color) -> Effect {
     let timer = (150, Interpolation::Linear);
     let style = Style::default().bg(color).fg(color);
@@ -34,4 +30,8 @@ pub fn dialog_enter(color: Color) -> Effect {
 
 pub fn show_notification_effect() -> Effect {
     coalesce(200).with_pattern(SweepPattern::up_to_down(0))
+}
+
+pub fn floating_component_enter_effect() -> Effect {
+    coalesce(120).with_pattern(SweepPattern::left_to_right(0))
 }

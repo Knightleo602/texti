@@ -104,13 +104,13 @@ impl Component for NavigatorComponent {
     fn override_keybind_id(&self, key_event: KeyEvent) -> Option<&AppComponent> {
         self.component.override_keybind_id(key_event)
     }
-    fn handle_action(&mut self, action: Action) -> ActionResult {
+    fn handle_action(&mut self, action: &Action) -> ActionResult {
         self.component.handle_action(action)
     }
-    fn handle_async_action(&mut self, action: AsyncAction) -> ActionResult {
+    fn handle_async_action(&mut self, action: &AsyncAction) -> ActionResult {
         if let AsyncAction::Navigate(comp) = action {
             if let Some(component) = comp {
-                self.navigate(component)
+                self.navigate(component.clone())
             } else if !self.return_last_component()
                 && let Some(sender) = &self.action_sender
             {
