@@ -1,7 +1,7 @@
 use crate::action::Action;
 use crate::component::component_utils::default_block;
 use crate::component::{AppComponent, Component};
-use crate::config::keybindings::stringify_key_event;
+use crate::config::keybindings::key_event_to_string;
 use crate::config::Config;
 use crossterm::event::KeyEvent;
 use ratatui::layout::Rect;
@@ -23,7 +23,7 @@ pub struct KeyBind {
 impl From<(&KeyEvent, &Action)> for KeyBind {
     fn from(value: (&KeyEvent, &Action)) -> KeyBind {
         let (key, action) = value;
-        let string_key = stringify_key_event(key);
+        let string_key = key_event_to_string(key);
         let action_string = action.to_string();
         Self {
             key: string_key,
@@ -65,7 +65,7 @@ impl HelpComponent {
         app_component: AppComponent,
         config: &Config,
     ) -> Option<Self> {
-        let keybinds = config.keybindings.get_all_keybinds(app_component)?;
+        let keybinds = config.keybindings.get_all_keybinds(&app_component)?;
         let c = keybinds.map(KeyBind::from).collect();
         Some(Self::new(title, c))
     }

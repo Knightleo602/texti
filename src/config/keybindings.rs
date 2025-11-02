@@ -18,27 +18,24 @@ impl Keybindings {
     pub fn with(map: ScreenMap) -> Self {
         Self { map }
     }
-    pub fn get_action(&self, app_component: &AppComponent, key: KeyEvent) -> Option<Action> {
-        self.map
-            .get(app_component)
-            .and_then(|map| map.get(&key))
-            .cloned()
+    pub fn get_action(&self, app_component: &AppComponent, key: KeyEvent) -> Option<&Action> {
+        self.map.get(app_component).and_then(|map| map.get(&key))
     }
     pub fn get_all_keybinds(
         &self,
-        app_component: AppComponent,
+        app_component: &AppComponent,
     ) -> Option<Iter<'_, KeyEvent, Action>> {
-        self.map.get(&app_component).map(|map| map.iter())
+        self.map.get(app_component).map(|map| map.iter())
     }
     pub fn get_key_event_of_action(
         &self,
-        app_component: AppComponent,
+        app_component: &AppComponent,
         action: Action,
-    ) -> Option<KeyEvent> {
-        let component_map = self.map.get(&app_component)?;
+    ) -> Option<&KeyEvent> {
+        let component_map = self.map.get(app_component)?;
         for (ke, a) in component_map.iter() {
             if a == &action {
-                return Some(*ke);
+                return Some(ke);
             }
         }
         None
@@ -122,6 +119,62 @@ fn parse_key_code_with_modifiers(
     Ok(KeyEvent::new(c, modifiers))
 }
 
+pub fn key_event_to_string(key_event: &KeyEvent) -> String {
+    let char;
+    let key_code = match key_event.code {
+        KeyCode::Backspace => "backspace",
+        KeyCode::Enter => "enter",
+        KeyCode::Left => "",
+        KeyCode::Right => "",
+        KeyCode::Up => "",
+        KeyCode::Down => "",
+        KeyCode::Home => "home",
+        KeyCode::End => "end",
+        KeyCode::PageUp => "pageup",
+        KeyCode::PageDown => "pagedown",
+        KeyCode::Tab => "tab",
+        KeyCode::BackTab => "backtab",
+        KeyCode::Delete => "delete",
+        KeyCode::Insert => "insert",
+        KeyCode::F(c) => {
+            char = format!("f({c})");
+            &char
+        }
+        KeyCode::Char(' ') => "space",
+        KeyCode::Char(c) => {
+            char = c.to_string();
+            &char
+        }
+        KeyCode::Esc => "esc",
+        KeyCode::Null => "",
+        KeyCode::CapsLock => "",
+        KeyCode::Menu => "",
+        KeyCode::ScrollLock => "",
+        KeyCode::Media(_) => "",
+        KeyCode::NumLock => "",
+        KeyCode::PrintScreen => "",
+        KeyCode::Pause => "",
+        KeyCode::KeypadBegin => "",
+        KeyCode::Modifier(_) => "",
+    };
+    let mut modifiers = Vec::with_capacity(3);
+    if key_event.modifiers.intersects(KeyModifiers::CONTROL) {
+        modifiers.push("ctrl");
+    }
+    if key_event.modifiers.intersects(KeyModifiers::SHIFT) {
+        modifiers.push("shift");
+    }
+    if key_event.modifiers.intersects(KeyModifiers::ALT) {
+        modifiers.push("alt");
+    }
+    let mut key = modifiers.join("-");
+    if !key.is_empty() {
+        key.push('-');
+    }
+    key.push_str(key_code);
+    key
+}
+
 fn extract_modifiers(raw: &str) -> (&str, KeyModifiers) {
     let mut modifiers = KeyModifiers::empty();
     let mut current = raw;
@@ -158,15 +211,4 @@ impl DerefMut for Keybindings {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.map
     }
-}
-
-pub fn stringify_key_event(event: &KeyEvent) -> String {
-    let key_string = event.code.to_string();
-    let mut string_key = String::new();
-    for modifier in event.modifiers {
-        string_key.push_str(modifier.to_string().as_str());
-        string_key.push('+')
-    }
-    string_key.push_str(&key_string);
-    string_key
 }

@@ -82,7 +82,8 @@ impl<T> DerefMut for TickCount<T> {
 pub trait Component {
     /// Gets a reference current `Config` data
     /// This config may clone what is needed from it and keep it in its state.
-    fn register_config(&mut self, config: &Config) {
+    fn register_config(&mut self, config: &Config, parent_comp: &AppComponent) {
+        let _ = parent_comp;
         let _ = config;
     }
     /// Register an `ActionSender` to the component, to be received by currently visible

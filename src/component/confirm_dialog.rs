@@ -3,7 +3,7 @@ use crate::component::component_utils::{center, default_block};
 use crate::component::{AppComponent, Component};
 use crate::config::effects::show_notification_effect;
 use crate::config::effects_config::EffectRunner;
-use crate::config::keybindings::stringify_key_event;
+use crate::config::keybindings::key_event_to_string;
 use crate::config::Config;
 use crossterm::event::KeyEvent;
 use ratatui::layout::Rect;
@@ -34,18 +34,19 @@ impl ConfirmDialogComponent {
 }
 
 impl Component for ConfirmDialogComponent {
-    fn register_config(&mut self, config: &Config) {
+    fn register_config(&mut self, config: &Config, app_component: &AppComponent) {
+        let _ = app_component;
         let confirm_key = config
             .keybindings
-            .get_key_event_of_action(AppComponent::Dialog, Action::Confirm);
+            .get_key_event_of_action(&AppComponent::Dialog, Action::Confirm);
         self.confirm_key = confirm_key
-            .map(|v| stringify_key_event(&v))
+            .map(key_event_to_string)
             .unwrap_or_default();
         let cancel_key = config
             .keybindings
-            .get_key_event_of_action(AppComponent::Dialog, Action::Cancel);
+            .get_key_event_of_action(&AppComponent::Dialog, Action::Cancel);
         self.cancel_key = cancel_key
-            .map(|v| stringify_key_event(&v))
+            .map(key_event_to_string)
             .unwrap_or_default();
     }
     fn register_action_sender(&mut self, sender: ActionSender) {

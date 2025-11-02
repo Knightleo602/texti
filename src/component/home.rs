@@ -4,7 +4,8 @@ use crate::action::{
 use crate::component::component_utils::{center_horizontally, default_block};
 use crate::component::file_selector::component::FileSelectorComponent;
 use crate::component::{AppComponent, Component};
-use crate::config::get_config_file_dir;
+use crate::config::keybindings::key_event_to_string;
+use crate::config::{get_config_file_dir, Config};
 use crossterm::event::KeyEvent;
 use ratatui::layout::{Alignment, Constraint, Direction, Flex, Layout, Rect};
 use ratatui::style::{Style, Stylize};
@@ -35,6 +36,8 @@ pub struct HomeComponent<'a> {
     action_sender: Option<ActionSender>,
     async_action_sender: Option<AsyncActionSender>,
     file_selector_component: FileSelectorComponent<'a>,
+    up_key: String,
+    down_key: String,
 }
 
 impl HomeComponent<'_> {
@@ -67,6 +70,21 @@ impl HomeComponent<'_> {
 }
 
 impl Component for HomeComponent<'_> {
+    fn register_config(&mut self, config: &Config, parent_comp: &AppComponent) {
+        let _ = parent_comp;
+        let up_key = config
+            .keybindings
+            .get_key_event_of_action(&AppComponent::HomeScreen, Action::Up)
+            .map(key_event_to_string)
+            .unwrap_or_default();
+        let down_key = config
+            .keybindings
+            .get_key_event_of_action(&AppComponent::HomeScreen, Action::Down)
+            .map(key_event_to_string)
+            .unwrap_or_default();
+        self.up_key = up_key;
+        self.down_key = down_key;
+    }
     fn register_action_sender(&mut self, sender: ActionSender) {
         self.file_selector_component
             .register_action_sender(sender.clone());
@@ -151,7 +169,8 @@ impl Component for HomeComponent<'_> {
         Default::default()
     }
     fn render(&mut self, frame: &mut Frame, area: Rect) {
-        let block_title = Line::raw("   select ").centered();
+        let block_title = format!(" {} {} select ", self.up_key, self.down_key);
+        let block_title = Line::raw(block_title).centered();
         let block = default_block().title_bottom(block_title);
         let block_area = block.inner(area);
         let center_horizontal_area = center_horizontally(block_area, Constraint::Percentage(25));

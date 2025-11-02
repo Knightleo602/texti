@@ -43,14 +43,13 @@ impl PathChild {
                 full_file_name,
                 extension,
             } => {
-                let t = if let Some(icon) = icon_for_file(full_file_name, extension) {
+                if let Some(icon) = icon_for_file(full_file_name, extension) {
                     icon + " " + full_file_name
                 } else {
                     full_file_name.to_string()
-                };
-                t
+                }
             }
-            PathChild::Folder(path) => format!("\u{ea83} {}", path),
+            PathChild::Folder(path) => format!(" {}", path),
             PathChild::MoveUp => "...".to_string(),
         }
     }

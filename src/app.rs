@@ -60,7 +60,8 @@ impl App {
 
     pub async fn run(&mut self) -> Result<()> {
         self.tui.enter()?;
-        self.component.register_config(&self.config);
+        self.component
+            .register_config(&self.config, &AppComponent::HomeScreen);
         self.component
             .register_action_sender(self.action_sender.clone());
         self.component
@@ -136,7 +137,7 @@ impl App {
             .override_keybind_id(key_event)
             .unwrap_or(&self.component.current_component);
         let action = if let Some(action) = self.config.keybindings.get_action(comp, key_event) {
-            action
+            action.clone()
         } else if let Some(char) = key_event.code.as_char() {
             Action::Character(char)
         } else {

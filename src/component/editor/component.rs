@@ -10,7 +10,7 @@ use crate::component::file_selector::component::FileSelectorComponent;
 use crate::component::help::{HelpComponent, KEYBINDS_HELP_TITLE};
 use crate::component::notification::NotificationComponent;
 use crate::component::{AppComponent, Component};
-use crate::config::keybindings::stringify_key_event;
+use crate::config::keybindings::key_event_to_string;
 use crate::config::Config;
 use crate::util::read_dir;
 use crossterm::event::KeyEvent;
@@ -292,15 +292,20 @@ impl EditorComponent<'_> {
 }
 
 impl Component for EditorComponent<'_> {
-    fn register_config(&mut self, config: &Config) {
+    fn register_config(&mut self, config: &Config, app_component: &AppComponent) {
+        let _ = app_component;
         if let Some(event) = config
             .keybindings
-            .get_key_event_of_action(AppComponent::Editor, Action::Help)
+            .get_key_event_of_action(&AppComponent::Editor, Action::Help)
         {
-            self.help_key = stringify_key_event(&event);
+            self.help_key = key_event_to_string(event);
         }
-        self.file_dialog.register_config(config);
-        self.confirm_dialog_component.register_config(config);
+        self.file_dialog
+            .register_config(config, &AppComponent::Editor);
+        self.confirm_dialog_component
+            .register_config(config, &AppComponent::Editor);
+        self.search_box_component
+            .register_config(config, &AppComponent::Editor);
         self.config = config.clone();
     }
     fn register_action_sender(&mut self, sender: ActionSender) {

@@ -68,7 +68,8 @@ impl NavigatorComponent {
         let (app_comp, comp) = Self::map_component(app_component);
         self.current_component = app_comp;
         self.component = comp;
-        self.component.register_config(&self.config);
+        self.component
+            .register_config(&self.config, &self.current_component);
         let action_sender = self.action_sender.as_ref().unwrap();
         self.component.register_action_sender(action_sender.clone());
         let async_action_sender = self.async_action_sender.clone().unwrap();
@@ -88,9 +89,9 @@ impl NavigatorComponent {
 }
 
 impl Component for NavigatorComponent {
-    fn register_config(&mut self, config: &Config) {
+    fn register_config(&mut self, config: &Config, app_component: &AppComponent) {
         self.config = config.clone();
-        self.component.register_config(config);
+        self.component.register_config(config, app_component);
     }
     fn register_action_sender(&mut self, sender: ActionSender) {
         self.component.register_action_sender(sender.clone());

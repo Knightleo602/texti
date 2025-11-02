@@ -1,8 +1,10 @@
 use crate::action::{Action, ActionResult, AsyncActionSender};
 use crate::component::component_utils::default_block;
-use crate::component::Component;
+use crate::component::{AppComponent, Component};
 use crate::config::effects::floating_component_enter_effect;
 use crate::config::effects_config::EffectRunner;
+use crate::config::keybindings::key_event_to_string;
+use crate::config::Config;
 use ratatui::layout::{Constraint, Direction, Flex, Layout, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::text::Line;
@@ -16,6 +18,8 @@ pub(super) struct SearchBoxComponent<'a> {
     error: bool,
     regex: bool,
     effect_runner: EffectRunner,
+    up_key: String,
+    down_key: String,
 }
 
 impl<'a> SearchBoxComponent<'a> {
@@ -37,10 +41,11 @@ impl<'a> SearchBoxComponent<'a> {
         self.error
     }
     pub fn apply_search_pattern(&mut self, search_area: &mut TextArea) {
-        let Some(search_text_area) = &mut self.text_area else {
-            let _ = search_area.set_search_pattern("");
+        if self.text_area.is_none() {
             return;
-        };
+        }
+        let block = self.search_block();
+        let search_text_area = self.text_area.as_mut().unwrap();
         let search = &search_text_area.lines()[0];
         let search = if self.regex {
             search
@@ -50,9 +55,9 @@ impl<'a> SearchBoxComponent<'a> {
         let r = search_area.set_search_pattern(search);
         self.error = r.is_err();
         if self.error {
-            search_text_area.set_block(Self::search_block().style(Color::Red))
+            search_text_area.set_block(block.style(Color::Red))
         } else {
-            search_text_area.set_block(Self::search_block())
+            search_text_area.set_block(block)
         }
     }
     pub fn stop_search(&mut self) {
@@ -61,16 +66,18 @@ impl<'a> SearchBoxComponent<'a> {
         self.regex = false;
     }
     fn update_text_area_placeholder(&mut self) {
+        let block = self.search_block();
         let text_area = self.text_area.as_mut().unwrap();
         let placeholder = if self.regex { "Regex" } else { "Text" };
         text_area.set_placeholder_text(placeholder);
         text_area.set_placeholder_style(Style::new().fg(Color::DarkGray));
-        text_area.set_block(Self::search_block());
+        text_area.set_block(block);
     }
-    fn search_block() -> Block<'static> {
+    fn search_block(&self) -> Block<'static> {
         const TITLE: &str = " Search ";
         let line = Line::raw(TITLE).left_aligned();
-        let actions_title = Line::raw("   select ").right_aligned();
+        let actions_title = format!(" {} {} select ", self.up_key, self.down_key);
+        let actions_title = Line::raw(actions_title).right_aligned();
         default_block().title_top(line).title_bottom(actions_title)
     }
     fn start_selection(&mut self) -> ActionResult {
@@ -176,6 +183,20 @@ impl<'a> SearchBoxComponent<'a> {
 }
 
 impl Component for SearchBoxComponent<'_> {
+    fn register_config(&mut self, config: &Config, parent_comp: &AppComponent) {
+        let up_key = config
+            .keybindings
+            .get_key_event_of_action(parent_comp, Action::Up)
+            .map(key_event_to_string)
+            .unwrap_or_default();
+        let down_key = config
+            .keybindings
+            .get_key_event_of_action(parent_comp, Action::Down)
+            .map(key_event_to_string)
+            .unwrap_or_default();
+        self.up_key = up_key;
+        self.down_key = down_key;
+    }
     fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
         self.effect_runner.register_async_sender(sender)
     }
