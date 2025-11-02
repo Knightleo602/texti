@@ -14,11 +14,11 @@ pub fn init_effect() -> Effect {
 
 pub fn enter_next_screen_effect() -> Effect {
     let style = Style::default();
-    coalesce_from(style, 300).with_pattern(SweepPattern::right_to_left(35))
+    coalesce_from(style, 300).with_pattern(SweepPattern::right_to_left(15))
 }
 
 pub fn leave_effect() -> Effect {
-    dissolve_to(Style::default(), 300).with_pattern(SweepPattern::left_to_right(35))
+    dissolve_to(Style::default(), 300).with_pattern(SweepPattern::left_to_right(15))
 }
 
 pub fn fade_from_effect() -> Effect {
