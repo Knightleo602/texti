@@ -4,6 +4,7 @@ use crate::action::{
 };
 use crate::component::component_utils::{center, default_block, write_file};
 use crate::component::confirm_dialog::ConfirmDialogComponent;
+use crate::component::editor::buffer::Buffer;
 use crate::component::file_selector::component::FileSelectorComponent;
 use crate::component::help::{HelpComponent, KEYBINDS_HELP_TITLE};
 use crate::component::notification::NotificationComponent;
@@ -11,95 +12,15 @@ use crate::component::{AppComponent, Component};
 use crate::config::keybindings::stringify_key_event;
 use crate::config::Config;
 use crate::util::read_dir;
-use clipboard::{ClipboardContext, ClipboardProvider};
-use color_eyre::eyre::{eyre, Result};
 use crossterm::event::KeyEvent;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::prelude::Color;
+use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::Frame;
-use std::env::current_dir;
 use std::path::{Path, PathBuf};
 use throbber_widgets_tui::{Throbber, BRAILLE_SIX_DOUBLE};
-use tui_textarea::{CursorMove, TextArea};
-
-const UNSAVED_FILE_NAME: &str = "unsaved";
-
-struct Buffer<'a> {
-    text_area: TextArea<'a>,
-    file_path: Option<PathBuf>,
-    modified: bool,
-    clipboard_context: Option<ClipboardContext>,
-}
-
-fn new_clipboard() -> Option<ClipboardContext> {
-    ClipboardContext::new().ok()
-}
-
-impl Default for Buffer<'_> {
-    fn default() -> Self {
-        Self {
-            text_area: Default::default(),
-            file_path: Default::default(),
-            modified: Default::default(),
-            clipboard_context: new_clipboard(),
-        }
-    }
-}
-
-impl Buffer<'_> {
-    fn new(file: Option<PathBuf>) -> Self {
-        Self {
-            text_area: TextArea::default(),
-            file_path: file,
-            modified: false,
-            clipboard_context: new_clipboard(),
-        }
-    }
-    fn current_path(&self) -> PathBuf {
-        self.file_path
-            .clone()
-            .map(|path| {
-                if path.is_dir() {
-                    path
-                } else {
-                    path.parent().unwrap_or(Path::new("/")).to_path_buf()
-                }
-            })
-            .unwrap_or_else(|| current_dir().unwrap_or_default())
-    }
-    fn clear(&mut self) {
-        self.modified = false;
-        self.text_area = TextArea::default();
-    }
-    pub fn file_name(&self) -> String {
-        let Some(path) = &self.file_path else {
-            return UNSAVED_FILE_NAME.to_string();
-        };
-        let Some(Some(file_name)) = path.file_name().map(|f| f.to_str()) else {
-            return UNSAVED_FILE_NAME.to_string();
-        };
-        file_name.to_string()
-    }
-    pub fn file_path(&self) -> Option<String> {
-        self.file_path
-            .as_ref()?
-            .parent()
-            .map(|p| p.to_string_lossy().to_string())
-    }
-    pub fn push_to_clipboard(&mut self, text: String) -> Result<()> {
-        let Some(clipboard) = self.clipboard_context.as_mut() else {
-            return Err(eyre!("Clipboard is unavailable"));
-        };
-        clipboard
-            .set_contents(text)
-            .map_err(|e| eyre!(e.to_string()))?;
-        Ok(())
-    }
-    pub fn get_from_clipboard(&mut self) -> Option<String> {
-        let copied = self.clipboard_context.as_mut()?;
-        copied.get_contents().ok()
-    }
-}
+use tui_textarea::CursorMove;
 
 #[derive(Default)]
 pub struct EditorComponent<'a> {
@@ -154,7 +75,7 @@ impl EditorComponent<'_> {
             SelectorType::PickFolder => self.save_file_at(path_buf, true),
             SelectorType::NewFile => self.save_file_at(path_buf, false),
             SelectorType::PickFile => {
-                self.buffer.file_path = Some(path_buf);
+                self.buffer.change_path(path_buf);
                 self.load_file();
                 ActionResult::consumed(true)
             }
@@ -173,7 +94,7 @@ impl EditorComponent<'_> {
         self.open_file_dialog(SelectorType::NewFile)
     }
     fn save_file_at(&mut self, path: PathBuf, overwrite: bool) -> ActionResult {
-        self.buffer.file_path = Some(path.clone());
+        self.buffer.change_path(path.clone());
         let lines = self.buffer.text_area.lines().join("\n");
         let action_sender = self.task_result_sender.clone().unwrap();
         self.saving_file = true;
@@ -263,7 +184,7 @@ impl EditorComponent<'_> {
     }
     fn load_file_contents(&mut self, contents: String) -> ActionResult {
         self.loading = false;
-        self.buffer.clear();
+        self.buffer.clear_text();
         self.buffer.text_area.insert_str(contents);
         self.buffer.text_area.cancel_selection();
         ActionResult::consumed(true)
@@ -305,7 +226,7 @@ impl EditorComponent<'_> {
             match result {
                 SaveFileResult::Saved(path) => {
                     self.notification.notify_text("File saved");
-                    self.buffer.file_path = Some(path);
+                    self.buffer.change_path(path);
                     self.buffer.modified = false;
                 }
                 SaveFileResult::Error(error) => self.notification.notify_error(error),
@@ -319,7 +240,7 @@ impl EditorComponent<'_> {
     }
     fn open_file_dialog(&mut self, selector_type: SelectorType) -> ActionResult {
         self.file_dialog
-            .show(self.buffer.current_path(), selector_type);
+            .show(self.buffer.current_directory(), selector_type);
         ActionResult::consumed(true)
     }
 
@@ -345,7 +266,21 @@ impl EditorComponent<'_> {
     fn show_confirm_overwrite(&mut self) -> ActionResult {
         const TITLE: &str = " File already exists ";
         const MESSAGE: &str = "Are you sure you want to overwrite it?";
-        self.confirm_dialog_component.show(TITLE, MESSAGE, Action::Save);
+        self.confirm_dialog_component
+            .show(TITLE, MESSAGE, Action::Save);
+        ActionResult::consumed(true)
+    }
+    fn line_number_style() -> Style {
+        Style::default().fg(Color::DarkGray)
+    }
+    fn toggle_line_number(&mut self) -> ActionResult {
+        if self.buffer.text_area.line_number_style().is_some() {
+            self.buffer.text_area.remove_line_number();
+        } else {
+            self.buffer
+                .text_area
+                .set_line_number_style(Self::line_number_style());
+        }
         ActionResult::consumed(true)
     }
 }
@@ -442,11 +377,11 @@ impl Component for EditorComponent<'_> {
             Action::Cancel => {
                 if self.buffer.text_area.is_selecting() {
                     self.buffer.text_area.cancel_selection();
-                    return ActionResult::Consumed { rerender: true };
+                    return ActionResult::consumed(true);
                 }
                 if self.insert {
                     self.insert = false;
-                    return ActionResult::Consumed { rerender: true };
+                    return ActionResult::consumed(true);
                 }
             }
             Action::Copy => return self.copy_selection(),
@@ -478,6 +413,7 @@ impl Component for EditorComponent<'_> {
             Action::PageDown => return self.page_down(),
             Action::EndOfWord => return self.move_next_word(),
             Action::StartOfWord => return self.move_previous_word(),
+            Action::ToggleLineNumber => return self.toggle_line_number(),
             _ => {}
         };
         Default::default()
@@ -512,7 +448,7 @@ impl Component for EditorComponent<'_> {
         let mode_title = Line::raw(mode_title).left_aligned();
         block = block.title_bottom(help_title);
         block = block.title_bottom(mode_title);
-        if let Some(file_path) = self.buffer.file_path() {
+        if let Some(file_path) = &self.buffer.current_path_string {
             let file_path_title = format!(" {} ", file_path);
             let file_path_title = Line::from(file_path_title).left_aligned();
             block = block.title_top(file_path_title);

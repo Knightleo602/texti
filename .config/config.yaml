@@ -38,6 +38,7 @@ keybindings:
     ctrl-shift-z: Redo
     ctrl-o: OpenFile
     ctrl-f: Search
+    ctrl-l: ToggleLineNumber
     alt-up: PageUp
     pageup: PageUp
     alt-down: PageDown

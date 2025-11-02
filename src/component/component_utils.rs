@@ -1,4 +1,5 @@
 use crate::action::SaveFileResult;
+use clipboard::{ClipboardContext, ClipboardProvider};
 use ratatui::layout::{Constraint, Flex, Layout, Rect};
 use ratatui::widgets::{Block, BorderType};
 use std::fs;
@@ -60,4 +61,8 @@ pub(super) async fn write_file(path: PathBuf, lines: String, overwrite: bool) ->
         return SaveFileResult::Error(e.to_string());
     }
     result
+}
+
+pub(super) fn new_clipboard() -> Option<ClipboardContext> {
+    ClipboardContext::new().ok()
 }

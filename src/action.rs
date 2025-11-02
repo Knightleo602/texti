@@ -63,6 +63,7 @@ pub enum Action {
     SelectDown,
     SelectLeft,
     SelectRight,
+    ToggleLineNumber,
     Confirm,
     Cancel,
     SelectAll,

@@ -1,5 +1,5 @@
 use crate::action::{Action, ActionResult, ActionSender, AsyncAction, AsyncActionSender};
-use crate::component::editor::EditorComponent;
+use crate::component::editor::component::EditorComponent;
 use crate::component::home::HomeComponent;
 use crate::component::{AppComponent, Component};
 use crate::config::effects::{enter_next_screen_effect, init_effect, leave_effect};
