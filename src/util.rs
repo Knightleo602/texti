@@ -1,5 +1,5 @@
 use crate::action::AsyncAction;
-use color_eyre::eyre::{eyre, Result};
+use color_eyre::eyre::{bail, Result};
 use std::path::Path;
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -20,11 +20,11 @@ pub async fn read_dir(path: &Path) -> AsyncAction {
 
 pub async fn read_dir_limited(path: &Path, lines_limit: usize) -> Result<String> {
     if lines_limit == 0 || !path.exists() || path.is_dir() {
-        return Err(eyre!(""));
+        bail!("Limit of {lines_limit} files is invalid");
     }
     let file = match File::open(path).await {
         Ok(file) => file,
-        Err(err) => return Err(eyre!(format!("{:?}", err))),
+        Err(err) => bail!(err),
     };
     let reader = BufReader::new(file);
     let mut lines = reader.lines();

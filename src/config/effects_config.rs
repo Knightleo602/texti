@@ -1,21 +1,10 @@
 use crate::action::{AsyncAction, AsyncActionSender};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::Color;
 use std::time::Instant;
-use tachyonfx::fx::{fade_from, slide_in};
-use tachyonfx::{Effect, EffectManager, Interpolation, Motion};
+use tachyonfx::{Effect, EffectManager};
 
-pub fn fade_from_effect() -> Effect {
-    fade_from(Color::Gray, Color::Gray, (1_000, Interpolation::SineIn))
-}
-
-pub fn slide_in_effect() -> Effect {
-    let c = Color::from_u32(0x1d2021);
-    let timer = (1000, Interpolation::Linear);
-    slide_in(Motion::UpToDown, 10, 0, c, timer)
-}
-
+#[derive(Debug)]
 pub struct EffectRunner {
     effect_manager: EffectManager<()>,
     last_frame: Instant,
@@ -43,19 +32,41 @@ impl EffectRunner {
     }
     pub fn add_effect(&mut self, effect: Effect) {
         self.effect_manager.add_effect(effect);
+        let _ = self
+            .require_async_sender()
+            .send(AsyncAction::StartAnimation);
+        if !self.running {
+            self.last_frame = Instant::now();
+        }
         self.running = true;
     }
-    pub fn process(&mut self, buffer: &mut Buffer, area: Rect) {
+    /// Process the animation, if there is one running
+    ///
+    /// Returns true if the animation have just finished, false if the animation is still running,
+    /// or there is no animation running.
+    pub fn process(&mut self, buffer: &mut Buffer, area: Rect) -> bool {
+        if !self.running {
+            return false;
+        }
         let elapsed = self.last_frame.elapsed();
         self.last_frame = Instant::now();
         self.effect_manager
             .process_effects(elapsed.into(), buffer, area);
-        if self.running && !self.effect_manager.is_running() {
+        if !self.effect_manager.is_running() {
             self.running = false;
             let Some(sender) = self.async_sender.as_ref() else {
-                return;
+                return true;
             };
             let _ = sender.send(AsyncAction::StopAnimation);
+            true
+        } else {
+            false
         }
+    }
+    fn require_async_sender(&mut self) -> &AsyncActionSender {
+        let Some(sender) = self.async_sender.as_ref() else {
+            panic!("No async sender configured in effect runner");
+        };
+        sender
     }
 }

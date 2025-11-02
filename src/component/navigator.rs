@@ -2,7 +2,8 @@ use crate::action::{Action, ActionResult, ActionSender, AsyncAction, AsyncAction
 use crate::component::editor::EditorComponent;
 use crate::component::home::HomeComponent;
 use crate::component::{AppComponent, Component};
-use crate::config::effects_config::{slide_in_effect, EffectRunner};
+use crate::config::effects::{enter_next_screen_effect, init_effect, leave_effect};
+use crate::config::effects_config::EffectRunner;
 use crate::config::Config;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::layout::Rect;
@@ -17,6 +18,7 @@ pub struct NavigatorComponent {
     action_sender: Option<ActionSender>,
     async_action_sender: Option<AsyncActionSender>,
     effect_runner: EffectRunner,
+    transitioning: Option<AppComponent>,
     config: Config,
 }
 
@@ -25,7 +27,7 @@ impl NavigatorComponent {
         Self::new_with_starting_component(AppComponent::default())
     }
     pub fn new_with_starting_component(app_component: AppComponent) -> Self {
-        let (app_comp, comp) = Self::component_from_app_component(app_component);
+        let (app_comp, comp) = Self::map_component(app_component);
         Self {
             component: comp,
             current_component: app_comp,
@@ -34,42 +36,47 @@ impl NavigatorComponent {
             async_action_sender: None,
             config: Config::default(),
             effect_runner: EffectRunner::default(),
+            transitioning: None,
         }
     }
     pub fn navigate(&mut self, app_component: AppComponent) {
         if self.current_component != app_component {
-            self.switch_screen(app_component);
+            self.start_leave_screen_transition(app_component);
         }
     }
     pub fn return_last_component(&mut self) -> bool {
         if let Some(previous_component) = self.previous_component.take() {
-            self.switch_screen(previous_component);
+            self.start_leave_screen_transition(previous_component);
             true
         } else if self.current_component != AppComponent::HomeScreen {
-            self.switch_screen(AppComponent::HomeScreen);
+            self.start_leave_screen_transition(AppComponent::HomeScreen);
             true
         } else {
             false
         }
     }
-    fn switch_screen(&mut self, app_component: AppComponent) {
-        self.effect_runner.add_effect(slide_in_effect());
-        let async_action_sender = self.async_action_sender.clone().unwrap();
-        let _ = async_action_sender.send(AsyncAction::StartAnimation);
+    fn start_leave_screen_transition(&mut self, app_component: AppComponent) {
+        self.effect_runner.add_effect(leave_effect());
+        self.transitioning = Some(app_component);
+    }
+    fn start_enter_screen_transition(&mut self) {
+        let Some(app_component) = self.transitioning.take() else {
+            return;
+        };
+        self.effect_runner.add_effect(enter_next_screen_effect());
         self.component.exit();
-        let (app_comp, comp) = Self::component_from_app_component(app_component);
+        let (app_comp, comp) = Self::map_component(app_component);
         self.current_component = app_comp;
         self.component = comp;
         self.component.register_config(&self.config);
         let action_sender = self.action_sender.as_ref().unwrap();
         self.component.register_action_sender(action_sender.clone());
+        let async_action_sender = self.async_action_sender.clone().unwrap();
         self.component
             .register_async_action_sender(async_action_sender);
         self.component.init();
     }
-    fn component_from_app_component(
-        app_component: AppComponent,
-    ) -> (AppComponent, Box<dyn Component>) {
+    fn map_component(app_component: AppComponent) -> (AppComponent, Box<dyn Component>) {
         match app_component {
             AppComponent::OpenedEditor(path) => {
                 (AppComponent::Editor, Box::new(EditorComponent::new(path)))
@@ -118,6 +125,7 @@ impl Component for NavigatorComponent {
         self.component.handle_mouse_event(mouse_event)
     }
     fn init(&mut self) {
+        self.effect_runner.add_effect(init_effect());
         self.component.init();
     }
     fn exit(&mut self) {
@@ -128,6 +136,9 @@ impl Component for NavigatorComponent {
         let block = Block::default().bg(Color::from_u32(0x1d2021));
         frame.render_widget(block, area);
         self.component.render(frame, area);
-        self.effect_runner.process(frame.buffer_mut(), area);
+        let just_finished = self.effect_runner.process(frame.buffer_mut(), area);
+        if just_finished {
+            self.start_enter_screen_transition()
+        }
     }
 }

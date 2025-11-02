@@ -6,6 +6,8 @@ use crate::component::file_selector::input::FileSelectorInput;
 use crate::component::file_selector::preview_component::PreviewComponent;
 use crate::component::file_selector::PathChild;
 use crate::component::{AppComponent, Component};
+use crate::config::effects::dialog_enter;
+use crate::config::effects_config::EffectRunner;
 use crossterm::event::KeyEvent;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Style, Stylize};
@@ -27,13 +29,16 @@ pub struct FileSelectorComponent<'a> {
     visible: bool,
     list_state: ListState,
     preview_component: PreviewComponent,
+    effect_runner: EffectRunner,
 }
 
 impl FileSelectorComponent<'_> {
     pub fn show<P: AsRef<Path>>(&mut self, dir: P, selector_type: SelectorType) {
         self.input.change_type(selector_type);
         self.visible = true;
-        self.select_dir(dir)
+        self.select_dir(dir);
+        self.effect_runner
+            .add_effect(dialog_enter(Color::from_u32(0x1d2021)));
     }
     pub fn select_dir<P: AsRef<Path>>(&mut self, dir: P) {
         let dir_path = dir.as_ref();
@@ -83,7 +88,7 @@ impl FileSelectorComponent<'_> {
     }
     fn select(&mut self, folder: bool) -> ActionResult {
         let Some(index) = self.list_state.selected() else {
-            let path = if let Some(text_area) = self.input.current_text_area() {
+            let path = if let Some(text_area) = self.input.current_input() {
                 self.current_path.join(text_area)
             } else {
                 self.current_path.clone()
@@ -218,7 +223,7 @@ impl FileSelectorComponent<'_> {
             self.list_state.select(None);
             return ActionResult::consumed(true);
         }
-        self.visible = false;
+        self.hide();
         ActionResult::consumed(true)
     }
 }
@@ -227,6 +232,7 @@ impl Component for FileSelectorComponent<'_> {
     fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
         self.preview_component
             .register_async_action_sender(sender.clone());
+        self.effect_runner.register_async_sender(sender.clone());
         self.action_sender = Some(sender)
     }
     fn override_keybind_id(&self, key_event: KeyEvent) -> Option<&AppComponent> {
@@ -266,9 +272,15 @@ impl Component for FileSelectorComponent<'_> {
     }
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         if self.visible {
+            let title = match self.input.selector_type() {
+                SelectorType::PickFolder => " Select Folder ",
+                SelectorType::PickFile => " Open file ",
+                SelectorType::NewFile => " Save file to ",
+            };
+            let title = Line::raw(title).centered();
             let path_title = format!(" {} ", self.current_path.to_str().unwrap_or("/"));
             let path_line = Line::from(path_title).left_aligned();
-            let block = default_block().title_bottom(path_line);
+            let block = default_block().title_bottom(path_line).title_top(title);
             let children = self.active_list();
             let items = children.iter().enumerate().map(|(i, v)| {
                 let text = v.to_path_line();
@@ -311,6 +323,7 @@ impl Component for FileSelectorComponent<'_> {
                 };
             self.input.render(frame, input_area);
             frame.render_stateful_widget(list, list_area, &mut self.list_state);
+            self.effect_runner.process(frame.buffer_mut(), area);
         }
     }
 }

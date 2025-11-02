@@ -121,6 +121,7 @@ impl App {
                 }
                 AsyncAction::StopAnimation => {
                     self.running_animation = false;
+                    self.should_rerender = true;
                     continue;
                 }
                 _ => self.component.handle_async_action(action),

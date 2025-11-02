@@ -25,14 +25,15 @@ keybindings:
     ctrl-i: Insert
     ctrl-q: Quit
     ctrl-s: Save
+    ctrl-t: SaveTo
     ctrl-a: SelectAll
     ctrl-x: Cut
     ctrl-c: Copy
     ctrl-v: Paste
-    ctrl-e: Return
+    ctrl-w: Return
     ctrl-z: Undo
     ctrl-shift-z: Redo
-    ctrl-p: OpenFile
+    ctrl-o: OpenFile
     ctrl-f: Search
     alt-up: PageUp
     pageup: PageUp

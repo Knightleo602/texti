@@ -5,7 +5,7 @@ use ratatui::Frame;
 use tui_textarea::{CursorMove, TextArea};
 
 const FILE_NAME_TITLE: &str = " File Name ";
-const SEARCH_BOX_TITLE: &str = " Search Folder ";
+const SEARCH_BOX_TITLE: &str = " Search ";
 
 #[derive(Default)]
 pub(super) struct FileSelectorInput<'a> {
@@ -41,35 +41,35 @@ impl FileSelectorInput<'_> {
         };
         None
     }
-    pub fn current_text_area(&self) -> Option<String> {
-        if let Some(filter) = &self.text_area
-            && !filter.is_empty()
+    pub fn current_input(&self) -> Option<String> {
+        if let Some(input) = &self.text_area
+            && !input.is_empty()
         {
-            return Some(filter.lines()[0].to_string());
+            return Some(input.lines()[0].to_string());
         };
         None
     }
     pub fn delete(&mut self) -> bool {
-        if let Some(text_area) = self.text_area.as_mut() {
+        if let Some(text_area) = self.filter.as_mut() {
             return text_area.delete_next_char();
-        } else if let Some(text_area) = self.filter.as_mut() {
+        } else if let Some(text_area) = self.text_area.as_mut() {
             return text_area.delete_next_char();
         }
         false
     }
     pub fn backspace(&mut self) -> bool {
-        if let Some(text_area) = self.text_area.as_mut() {
+        if let Some(text_area) = self.filter.as_mut() {
             return text_area.delete_char();
-        } else if let Some(text_area) = self.filter.as_mut() {
+        } else if let Some(text_area) = self.text_area.as_mut() {
             return text_area.delete_char();
         }
         false
     }
     pub fn handle_character(&mut self, character: char) -> bool {
-        if let Some(text_area) = self.text_area.as_mut() {
+        if let Some(text_area) = self.filter.as_mut() {
             text_area.insert_char(character);
             return true;
-        } else if let Some(text_area) = self.filter.as_mut() {
+        } else if let Some(text_area) = self.text_area.as_mut() {
             text_area.insert_char(character);
             return true;
         }

@@ -88,6 +88,7 @@ pub enum Action {
     TogglePreview,
     ReloadPreview,
     Resize(u16, u16),
+    SaveTo,
 }
 
 /// Application created actions. Usually by separate tasks that have been created by `Action`s

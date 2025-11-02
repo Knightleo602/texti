@@ -57,6 +57,13 @@ impl Buffer<'_> {
     fn current_path(&self) -> PathBuf {
         self.file_path
             .clone()
+            .map(|path| {
+                if path.is_dir() {
+                    path
+                } else {
+                    path.parent().unwrap_or(Path::new("/")).to_path_buf()
+                }
+            })
             .unwrap_or_else(|| current_dir().unwrap_or_default())
     }
     fn clear(&mut self) {
@@ -158,6 +165,9 @@ impl EditorComponent<'_> {
             return self.open_file_dialog(SelectorType::NewFile);
         };
         self.save_file_at(path)
+    }
+    fn save_to_other_location(&mut self) -> ActionResult {
+        self.open_file_dialog(SelectorType::NewFile)
     }
     fn save_file_at(&mut self, path: PathBuf) -> ActionResult {
         self.buffer.file_path = Some(path.clone());
@@ -292,7 +302,8 @@ impl EditorComponent<'_> {
             match result {
                 SaveFileResult::Saved(path) => {
                     self.notification.notify_text("File saved");
-                    self.buffer.file_path = Some(path)
+                    self.buffer.file_path = Some(path);
+                    self.buffer.modified = false;
                 }
                 SaveFileResult::Error(error) => self.notification.notify_error(error),
                 SaveFileResult::MissingName => return self.open_file_dialog(SelectorType::NewFile),
@@ -346,6 +357,8 @@ impl Component for EditorComponent<'_> {
     }
     fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
         self.task_result_sender = Some(sender.clone());
+        self.notification
+            .register_async_action_sender(sender.clone());
         self.file_dialog.register_async_action_sender(sender)
     }
     fn override_keybind_id(&self, key_event: KeyEvent) -> Option<&AppComponent> {
@@ -420,6 +433,7 @@ impl Component for EditorComponent<'_> {
             Action::Cut => return self.cut_selection(),
             Action::SelectAll => return self.select_all(),
             Action::Save => return self.save_file(),
+            Action::SaveTo => return self.save_to_other_location(),
             Action::Redo => {
                 if self.buffer.text_area.redo() {
                     return ActionResult::consumed(true);

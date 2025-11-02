@@ -1,6 +1,8 @@
-use crate::action::{Action, ActionResult};
+use crate::action::{Action, ActionResult, AsyncActionSender};
 use crate::component::component_utils::{center_horizontally, default_block};
 use crate::component::{Component, TickCount};
+use crate::config::effects::show_notification_effect;
+use crate::config::effects_config::EffectRunner;
 use ratatui::layout::{Constraint, Flex, Layout, Rect};
 use ratatui::prelude::{Color, Text};
 use ratatui::widgets::{Clear, Paragraph};
@@ -15,6 +17,7 @@ pub struct Notification {
 #[derive(Debug, Default)]
 pub struct NotificationComponent {
     notification: Option<Notification>,
+    effect_runner: EffectRunner,
 }
 
 #[allow(dead_code)]
@@ -26,6 +29,7 @@ impl NotificationComponent {
         };
         Self {
             notification: Some(notification),
+            effect_runner: EffectRunner::default(),
         }
     }
     pub fn new_with_count(text: String, error: bool, count: usize) -> Self {
@@ -35,6 +39,7 @@ impl NotificationComponent {
         };
         Self {
             notification: Some(notification),
+            effect_runner: EffectRunner::default(),
         }
     }
     pub fn notify_text<T: ToString>(&mut self, text: T) {
@@ -43,6 +48,7 @@ impl NotificationComponent {
             error: false,
         };
         self.notification = Some(notification);
+        self.effect_runner.add_effect(show_notification_effect())
     }
     pub fn notify_error<T: ToString>(&mut self, text: T) {
         let notification = Notification {
@@ -50,6 +56,7 @@ impl NotificationComponent {
             error: true,
         };
         self.notification = Some(notification);
+        self.effect_runner.add_effect(show_notification_effect())
     }
     pub fn notify(&mut self, notification: Notification) {
         self.notification = Some(notification);
@@ -80,6 +87,9 @@ impl NotificationComponent {
 }
 
 impl Component for NotificationComponent {
+    fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
+        self.effect_runner.register_async_sender(sender)
+    }
     fn handle_action(&mut self, action: Action) -> ActionResult {
         self.handle_action_ref(&action)
     }
@@ -102,6 +112,7 @@ impl Component for NotificationComponent {
                 paragraph = paragraph.block(block);
             };
             frame.render_widget(paragraph, pop_up_area);
+            self.effect_runner.process(frame.buffer_mut(), pop_up_area);
         }
     }
 }
