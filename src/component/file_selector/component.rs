@@ -265,7 +265,7 @@ impl Component for FileSelectorComponent<'_> {
             Action::Character(char) => return self.handle_character(char),
             _ => {}
         }
-        Default::default()
+        ActionResult::consumed(false)
     }
     fn handle_async_action(&mut self, action: AsyncAction) -> ActionResult {
         self.preview_component.handle_async_action(action)

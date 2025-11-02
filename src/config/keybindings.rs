@@ -160,21 +160,13 @@ impl DerefMut for Keybindings {
     }
 }
 
-pub fn stringify_key_event(event: KeyEvent) -> String {
-    let Some(c) = event.code.as_char() else {
-        return String::new();
-    };
-    if event.modifiers.is_empty() {
-        return c.to_string();
+pub fn stringify_key_event(event: &KeyEvent) -> String {
+    let key_string = event.code.to_string();
+    let mut string_key = String::new();
+    for modifier in event.modifiers {
+        string_key.push_str(modifier.to_string().as_str());
+        string_key.push('+')
     }
-    let mut modifiers = String::new();
-    let mut iter = event.modifiers.into_iter();
-    modifiers.push_str(iter.next().unwrap().to_string().as_str());
-    for m in iter {
-        modifiers.push('+');
-        modifiers.push_str(&m.to_string());
-    }
-    modifiers.push('+');
-    modifiers.push(c);
-    modifiers
+    string_key.push_str(&key_string);
+    string_key
 }

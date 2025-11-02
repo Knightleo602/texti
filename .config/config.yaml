@@ -7,6 +7,9 @@ keybindings:
     h: Help
     i: Insert
     q: Quit
+  Dialog:
+    esc: Cancel
+    enter: Confirm
   Editor:
     up: Up
     down: Down

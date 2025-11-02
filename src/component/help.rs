@@ -1,6 +1,7 @@
 use crate::action::Action;
 use crate::component::component_utils::default_block;
 use crate::component::{AppComponent, Component};
+use crate::config::keybindings::stringify_key_event;
 use crate::config::Config;
 use crossterm::event::KeyEvent;
 use ratatui::layout::Rect;
@@ -22,13 +23,7 @@ pub struct KeyBind {
 impl From<(&KeyEvent, &Action)> for KeyBind {
     fn from(value: (&KeyEvent, &Action)) -> KeyBind {
         let (key, action) = value;
-        let key_string = key.code.to_string();
-        let mut string_key = String::new();
-        for modifier in key.modifiers {
-            string_key.push_str(modifier.to_string().as_str());
-            string_key.push('+')
-        }
-        string_key.push_str(&key_string);
+        let string_key = stringify_key_event(key);
         let action_string = action.to_string();
         Self {
             key: string_key,

@@ -1,4 +1,5 @@
 mod component_utils;
+mod confirm_dialog;
 mod editor;
 mod file_selector;
 mod help;
@@ -23,7 +24,7 @@ pub enum AppComponent {
     OpenedEditor(String),
     FileDialog,
     Editor,
-    Global,
+    Dialog,
 }
 
 #[derive(Debug)]

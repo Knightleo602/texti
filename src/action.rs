@@ -12,6 +12,7 @@ pub type AsyncActionReceiver = UnboundedReceiver<AsyncAction>;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SaveFileResult {
     Saved(PathBuf),
+    ConfirmOverwrite,
     Error(String),
     MissingName,
 }

@@ -3,6 +3,7 @@ use crate::action::{
     SelectorType,
 };
 use crate::component::component_utils::{center, default_block, write_file};
+use crate::component::confirm_dialog::ConfirmDialogComponent;
 use crate::component::file_selector::component::FileSelectorComponent;
 use crate::component::help::{HelpComponent, KEYBINDS_HELP_TITLE};
 use crate::component::notification::NotificationComponent;
@@ -113,6 +114,7 @@ pub struct EditorComponent<'a> {
     notification: NotificationComponent,
     help_component: Option<HelpComponent>,
     file_dialog: FileSelectorComponent<'a>,
+    confirm_dialog_component: ConfirmDialogComponent,
 }
 
 impl<P: AsRef<Path>> From<P> for EditorComponent<'_> {
@@ -149,7 +151,8 @@ impl EditorComponent<'_> {
     }
     fn handle_selector(&mut self, path_buf: PathBuf, selector_type: SelectorType) -> ActionResult {
         match selector_type {
-            SelectorType::PickFolder | SelectorType::NewFile => self.save_file_at(path_buf),
+            SelectorType::PickFolder => self.save_file_at(path_buf, true),
+            SelectorType::NewFile => self.save_file_at(path_buf, false),
             SelectorType::PickFile => {
                 self.buffer.file_path = Some(path_buf);
                 self.load_file();
@@ -157,27 +160,27 @@ impl EditorComponent<'_> {
             }
         }
     }
-    fn save_file(&mut self) -> ActionResult {
+    fn handle_save_file(&mut self) -> ActionResult {
         if !self.buffer.modified && self.buffer.file_path.is_some() {
             return ActionResult::not_consumed(false);
         }
         let Some(path) = self.buffer.file_path.clone() else {
             return self.open_file_dialog(SelectorType::NewFile);
         };
-        self.save_file_at(path)
+        self.save_file_at(path, true)
     }
-    fn save_to_other_location(&mut self) -> ActionResult {
+    fn handle_save_to(&mut self) -> ActionResult {
         self.open_file_dialog(SelectorType::NewFile)
     }
-    fn save_file_at(&mut self, path: PathBuf) -> ActionResult {
+    fn save_file_at(&mut self, path: PathBuf, overwrite: bool) -> ActionResult {
         self.buffer.file_path = Some(path.clone());
         let lines = self.buffer.text_area.lines().join("\n");
         let action_sender = self.task_result_sender.clone().unwrap();
         self.saving_file = true;
         self.file_dialog.hide();
         tokio::spawn(async move {
-            let r = write_file(path, lines).await;
-            let _ = action_sender.send(r);
+            let r = write_file(path, lines, overwrite).await;
+            let _ = action_sender.send(AsyncAction::SavedFile(r));
         });
         ActionResult::consumed(true)
     }
@@ -307,6 +310,7 @@ impl EditorComponent<'_> {
                 }
                 SaveFileResult::Error(error) => self.notification.notify_error(error),
                 SaveFileResult::MissingName => return self.open_file_dialog(SelectorType::NewFile),
+                SaveFileResult::ConfirmOverwrite => return self.show_confirm_overwrite(),
             };
             ActionResult::consumed(true)
         } else {
@@ -338,6 +342,12 @@ impl EditorComponent<'_> {
         self.buffer.text_area.move_cursor(CursorMove::WordBack);
         ActionResult::consumed(true)
     }
+    fn show_confirm_overwrite(&mut self) -> ActionResult {
+        const TITLE: &str = " File already exists ";
+        const MESSAGE: &str = "Are you sure you want to overwrite it?";
+        self.confirm_dialog_component.show(TITLE, MESSAGE, Action::Save);
+        ActionResult::consumed(true)
+    }
 }
 
 impl Component for EditorComponent<'_> {
@@ -346,23 +356,31 @@ impl Component for EditorComponent<'_> {
             .keybindings
             .get_key_event_of_action(AppComponent::Editor, Action::Help)
         {
-            self.help_key = stringify_key_event(event);
+            self.help_key = stringify_key_event(&event);
         }
         self.file_dialog.register_config(config);
+        self.confirm_dialog_component.register_config(config);
         self.config = config.clone();
     }
     fn register_action_sender(&mut self, sender: ActionSender) {
         self.action_sender = Some(sender.clone());
+        self.confirm_dialog_component
+            .register_action_sender(sender.clone());
         self.file_dialog.register_action_sender(sender);
     }
     fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
         self.task_result_sender = Some(sender.clone());
         self.notification
             .register_async_action_sender(sender.clone());
+        self.confirm_dialog_component
+            .register_async_action_sender(sender.clone());
         self.file_dialog.register_async_action_sender(sender)
     }
     fn override_keybind_id(&self, key_event: KeyEvent) -> Option<&AppComponent> {
         if let Some(a) = self.file_dialog.override_keybind_id(key_event) {
+            return Some(a);
+        };
+        if let Some(a) = self.confirm_dialog_component.override_keybind_id(key_event) {
             return Some(a);
         };
         Some(&AppComponent::Editor)
@@ -371,6 +389,10 @@ impl Component for EditorComponent<'_> {
         let notification_res = self.notification.handle_action_ref(&action);
         if notification_res.is_consumed() {
             return notification_res;
+        }
+        let confirm_res = self.confirm_dialog_component.handle_action(action.clone());
+        if confirm_res.is_consumed() {
+            return confirm_res;
         }
         let file_dialog_res = self.file_dialog.handle_action(action.clone());
         if file_dialog_res.is_consumed() {
@@ -432,8 +454,8 @@ impl Component for EditorComponent<'_> {
             Action::PasteText(text) => return self.paste_text(text),
             Action::Cut => return self.cut_selection(),
             Action::SelectAll => return self.select_all(),
-            Action::Save => return self.save_file(),
-            Action::SaveTo => return self.save_to_other_location(),
+            Action::Save => return self.handle_save_file(),
+            Action::SaveTo => return self.handle_save_to(),
             Action::Redo => {
                 if self.buffer.text_area.redo() {
                     return ActionResult::consumed(true);
@@ -523,5 +545,6 @@ impl Component for EditorComponent<'_> {
         }
         self.notification.render(frame, block_area);
         self.file_dialog.render(frame, area);
+        self.confirm_dialog_component.render(frame, block_area);
     }
 }

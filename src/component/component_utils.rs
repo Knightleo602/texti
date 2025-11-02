@@ -1,4 +1,4 @@
-use crate::action::{AsyncAction, SaveFileResult};
+use crate::action::SaveFileResult;
 use ratatui::layout::{Constraint, Flex, Layout, Rect};
 use ratatui::widgets::{Block, BorderType};
 use std::fs;
@@ -29,22 +29,26 @@ pub(super) fn default_block() -> Block<'static> {
     Block::bordered().border_type(BorderType::Rounded)
 }
 
-pub(super) async fn write_file(path: PathBuf, lines: String) -> AsyncAction {
-    if !path.exists()
-        && let Some(parent) = path.parent()
+pub(super) async fn write_file(path: PathBuf, lines: String, overwrite: bool) -> SaveFileResult {
+    let exists = path.exists();
+    if exists {
+        if !overwrite {
+            return SaveFileResult::ConfirmOverwrite;
+        }
+    } else if let Some(parent) = path.parent()
         && let Err(e) = fs::create_dir_all(parent)
     {
         let result = SaveFileResult::Error(e.to_string());
-        return AsyncAction::SavedFile(result);
-    };
+        return result;
+    }
     if path.is_dir() {
-        return AsyncAction::SavedFile(SaveFileResult::MissingName);
+        return SaveFileResult::MissingName;
     }
     let mut file = match File::create(&path).await {
         Ok(file) => file,
         Err(e) => {
             let result = SaveFileResult::Error(e.to_string());
-            return AsyncAction::SavedFile(result);
+            return result;
         }
     };
     let result = if let Err(e) = file.write_all(lines.as_ref()).await {
@@ -53,8 +57,7 @@ pub(super) async fn write_file(path: PathBuf, lines: String) -> AsyncAction {
         SaveFileResult::Saved(path)
     };
     if let Err(e) = file.flush().await {
-        let result = SaveFileResult::Error(e.to_string());
-        return AsyncAction::SavedFile(result);
+        return SaveFileResult::Error(e.to_string());
     }
-    AsyncAction::SavedFile(result)
+    result
 }
