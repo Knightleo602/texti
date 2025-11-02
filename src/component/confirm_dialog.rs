@@ -96,6 +96,7 @@ impl Component for ConfirmDialogComponent {
             let text = Text::raw(&self.message).centered();
             frame.render_widget(text, text_area);
             frame.render_widget(block, area);
+            self.effect_runner.process(frame.buffer_mut(), area);
         }
     }
 }
