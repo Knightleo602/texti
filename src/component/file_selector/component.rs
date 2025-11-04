@@ -56,12 +56,7 @@ impl FileSelectorComponent<'_> {
             let c = if path.is_dir() {
                 PathChild::Folder(name)
             } else if self.input.selector_type().show_files() {
-                let ext = path.extension().unwrap_or_default();
-                let ext = ext.to_string_lossy().to_string();
-                PathChild::File {
-                    full_file_name: name,
-                    extension: ext,
-                }
+                PathChild::file(name, path)
             } else {
                 continue;
             };
@@ -77,10 +72,7 @@ impl FileSelectorComponent<'_> {
     fn child_path(&self, index: usize) -> Option<PathBuf> {
         let child = self.children.get(index)?;
         let path = match child {
-            PathChild::File {
-                full_file_name,
-                extension: _,
-            } => self.current_path.join(full_file_name),
+            PathChild::File { full_file_name, icon: _ } => self.current_path.join(full_file_name),
             PathChild::Folder(f) => self.current_path.join(f),
             PathChild::MoveUp => return None,
         };
@@ -102,10 +94,7 @@ impl FileSelectorComponent<'_> {
         };
         let can_pick_folder = folder && self.input.selector_type().can_pick_folder();
         let path = match child {
-            PathChild::File {
-                full_file_name,
-                extension: _,
-            } => self.current_path.join(full_file_name),
+            PathChild::File { full_file_name, icon: _ } => self.current_path.join(full_file_name),
             PathChild::Folder(f) => {
                 let path = self.current_path.join(f);
                 if !can_pick_folder {

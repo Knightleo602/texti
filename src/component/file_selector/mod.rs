@@ -1,5 +1,6 @@
 use crate::component::component_utils::default_block;
 use ratatui::prelude::Line;
+use std::path::PathBuf;
 use tui_textarea::TextArea;
 
 pub mod component;
@@ -18,19 +19,31 @@ pub(super) fn create_default_text_area(title: &'_ str) -> TextArea<'_> {
 pub(super) enum PathChild {
     File {
         full_file_name: String,
-        extension: String,
+        icon: Option<String>,
     },
     Folder(String),
     MoveUp,
 }
 
 impl PathChild {
+    pub fn file(file_name: String, path_buf: PathBuf) -> Self {
+        let extension = path_buf
+            .extension()
+            .unwrap_or_default()
+            .display()
+            .to_string();
+        let icon = icon_for_file(&file_name, &extension);
+        Self::File {
+            full_file_name: file_name,
+            icon,
+        }
+    }
     fn filter<F: AsRef<str>>(&self, filter: F) -> bool {
         let filter = filter.as_ref();
         match self {
             PathChild::File {
                 full_file_name,
-                extension: _,
+                icon: _,
             } => full_file_name.to_lowercase().contains(filter),
             PathChild::Folder(f) => f.to_lowercase().contains(filter),
             PathChild::MoveUp => true,
@@ -41,10 +54,10 @@ impl PathChild {
         match self {
             PathChild::File {
                 full_file_name,
-                extension,
+                icon,
             } => {
-                if let Some(icon) = icon_for_file(full_file_name, extension) {
-                    icon + " " + full_file_name
+                if let Some(icon) = icon {
+                    format!("{icon} {full_file_name}")
                 } else {
                     full_file_name.to_string()
                 }
@@ -62,13 +75,19 @@ fn icon_for_file(file_name: &str, ext: &str) -> Option<String> {
         "yaml" => "",
         "json" | "json5" => "",
         "toml" => "",
-        _ => {
-            if file_name == ".config" {
-                ""
-            } else {
-                return None;
-            }
-        }
+        "java" => "",
+        "js" => "",
+        "ts" => "",
+        "kt" => "",
+        "c" => "",
+        "cpp" => "",
+        "cs" => "",
+        "css" => "",
+        "html" => "",
+        _ => match file_name {
+            ".config" => "",
+            _ => return None,
+        },
     };
     Some(r.to_string())
 }
