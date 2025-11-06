@@ -2,12 +2,12 @@ pub(crate) use crate::action::{
     Action, ActionResult, AsyncAction, AsyncActionSender, SelectorType,
 };
 use crate::component::component_utils::{center_horizontally, center_vertically, default_block};
+use crate::component::effect_runner::EffectRunner;
 use crate::component::file_selector::input::FileSelectorInput;
 use crate::component::file_selector::preview_component::PreviewComponent;
 use crate::component::file_selector::PathChild;
 use crate::component::{AppComponent, Component};
 use crate::config::effects::dialog_enter;
-use crate::config::effects_config::EffectRunner;
 use crossterm::event::KeyEvent;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Style, Stylize};
@@ -72,7 +72,10 @@ impl FileSelectorComponent<'_> {
     fn child_path(&self, index: usize) -> Option<PathBuf> {
         let child = self.children.get(index)?;
         let path = match child {
-            PathChild::File { full_file_name, icon: _ } => self.current_path.join(full_file_name),
+            PathChild::File {
+                full_file_name,
+                icon: _,
+            } => self.current_path.join(full_file_name),
             PathChild::Folder(f) => self.current_path.join(f),
             PathChild::MoveUp => return None,
         };
@@ -94,7 +97,10 @@ impl FileSelectorComponent<'_> {
         };
         let can_pick_folder = folder && self.input.selector_type().can_pick_folder();
         let path = match child {
-            PathChild::File { full_file_name, icon: _ } => self.current_path.join(full_file_name),
+            PathChild::File {
+                full_file_name,
+                icon: _,
+            } => self.current_path.join(full_file_name),
             PathChild::Folder(f) => {
                 let path = self.current_path.join(f);
                 if !can_pick_folder {
@@ -221,7 +227,7 @@ impl Component for FileSelectorComponent<'_> {
     fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
         self.preview_component
             .register_async_action_sender(sender.clone());
-        self.effect_runner.register_async_sender(sender.clone());
+        self.effect_runner.register_async_action_sender(sender.clone());
         self.action_sender = Some(sender)
     }
     fn override_keybind_id(&self, key_event: KeyEvent) -> Option<&AppComponent> {

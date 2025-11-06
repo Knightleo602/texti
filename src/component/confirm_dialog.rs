@@ -1,8 +1,8 @@
 use crate::action::{Action, ActionResult, ActionSender, AsyncActionSender};
 use crate::component::component_utils::{center, default_block};
+use crate::component::effect_runner::EffectRunner;
 use crate::component::{AppComponent, Component};
 use crate::config::effects::show_notification_effect;
-use crate::config::effects_config::EffectRunner;
 use crate::config::keybindings::key_event_to_string;
 use crate::config::Config;
 use crossterm::event::KeyEvent;
@@ -39,21 +39,18 @@ impl Component for ConfirmDialogComponent {
         let confirm_key = config
             .keybindings
             .get_key_event_of_action(&AppComponent::Dialog, Action::Confirm);
-        self.confirm_key = confirm_key
-            .map(key_event_to_string)
-            .unwrap_or_default();
+        self.confirm_key = confirm_key.map(key_event_to_string).unwrap_or_default();
         let cancel_key = config
             .keybindings
             .get_key_event_of_action(&AppComponent::Dialog, Action::Cancel);
-        self.cancel_key = cancel_key
-            .map(key_event_to_string)
-            .unwrap_or_default();
+        self.cancel_key = cancel_key.map(key_event_to_string).unwrap_or_default();
     }
     fn register_action_sender(&mut self, sender: ActionSender) {
         self.action_sender = Some(sender);
     }
     fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
-        self.effect_runner.register_async_sender(sender.clone());
+        self.effect_runner
+            .register_async_action_sender(sender.clone());
     }
     fn override_keybind_id(&self, key_event: KeyEvent) -> Option<&AppComponent> {
         if !self.visible() {

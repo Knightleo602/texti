@@ -1,9 +1,9 @@
 use crate::action::{Action, ActionResult, ActionSender, AsyncAction, AsyncActionSender};
 use crate::component::editor::component::EditorComponent;
+use crate::component::effect_runner::EffectRunner;
 use crate::component::home::HomeComponent;
 use crate::component::{AppComponent, Component};
 use crate::config::effects::{enter_next_screen_effect, init_effect, leave_effect};
-use crate::config::effects_config::EffectRunner;
 use crate::config::Config;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::layout::Rect;
@@ -99,7 +99,8 @@ impl Component for NavigatorComponent {
     }
     fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
         self.async_action_sender = Some(sender.clone());
-        self.effect_runner.register_async_sender(sender.clone());
+        self.effect_runner
+            .register_async_action_sender(sender.clone());
         self.component.register_async_action_sender(sender)
     }
     fn override_keybind_id(&self, key_event: KeyEvent) -> Option<&AppComponent> {

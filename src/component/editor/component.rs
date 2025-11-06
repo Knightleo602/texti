@@ -7,14 +7,13 @@ use crate::component::confirm_dialog::ConfirmDialogComponent;
 use crate::component::editor::buffer::Buffer;
 use crate::component::editor::search_box::SearchBoxComponent;
 use crate::component::file_selector::component::FileSelectorComponent;
-use crate::component::help::{HelpComponent, KEYBINDS_HELP_TITLE};
+use crate::component::help::HelpComponent;
 use crate::component::notification::NotificationComponent;
 use crate::component::{AppComponent, Component};
-use crate::config::keybindings::key_event_to_string;
 use crate::config::Config;
 use crate::util::read_dir;
 use crossterm::event::KeyEvent;
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::prelude::Color;
 use ratatui::style::Style;
 use ratatui::text::Line;
@@ -32,9 +31,8 @@ pub struct EditorComponent<'a> {
     task_result_sender: Option<AsyncActionSender>,
     insert: bool,
     config: Config,
-    help_key: String,
     notification: NotificationComponent,
-    help_component: Option<HelpComponent>,
+    help_component: HelpComponent,
     file_dialog: FileSelectorComponent<'a>,
     confirm_dialog_component: ConfirmDialogComponent,
     search_box_component: SearchBoxComponent<'a>,
@@ -107,17 +105,6 @@ impl EditorComponent<'_> {
         });
         ActionResult::consumed(true)
     }
-    fn show_help(&mut self) {
-        let Some(comp) =
-            HelpComponent::from_component(KEYBINDS_HELP_TITLE, AppComponent::Editor, &self.config)
-        else {
-            return;
-        };
-        self.help_component = Some(comp);
-    }
-    fn hide_help(&mut self) {
-        self.help_component = None;
-    }
     fn start_selection(&mut self) {
         if !self.buffer.text_area.is_selecting() {
             self.buffer.text_area.start_selection();
@@ -174,14 +161,6 @@ impl EditorComponent<'_> {
     fn tab(&mut self) -> ActionResult {
         self.buffer.text_area.insert_tab();
         self.buffer.modified = true;
-        ActionResult::consumed(true)
-    }
-    fn toggle_help(&mut self) -> ActionResult {
-        if self.help_component.is_some() {
-            self.hide_help();
-        } else {
-            self.show_help();
-        }
         ActionResult::consumed(true)
     }
     fn load_file_contents(&mut self, contents: String) -> ActionResult {
@@ -289,51 +268,7 @@ impl EditorComponent<'_> {
         self.search_box_component.toggle();
         ActionResult::consumed(true)
     }
-}
-
-impl Component for EditorComponent<'_> {
-    fn register_config(&mut self, config: &Config, app_component: &AppComponent) {
-        let _ = app_component;
-        if let Some(event) = config
-            .keybindings
-            .get_key_event_of_action(&AppComponent::Editor, Action::Help)
-        {
-            self.help_key = key_event_to_string(event);
-        }
-        self.file_dialog
-            .register_config(config, &AppComponent::Editor);
-        self.confirm_dialog_component
-            .register_config(config, &AppComponent::Editor);
-        self.search_box_component
-            .register_config(config, &AppComponent::Editor);
-        self.config = config.clone();
-    }
-    fn register_action_sender(&mut self, sender: ActionSender) {
-        self.action_sender = Some(sender.clone());
-        self.confirm_dialog_component
-            .register_action_sender(sender.clone());
-        self.file_dialog.register_action_sender(sender);
-    }
-    fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
-        self.task_result_sender = Some(sender.clone());
-        self.notification
-            .register_async_action_sender(sender.clone());
-        self.confirm_dialog_component
-            .register_async_action_sender(sender.clone());
-        self.search_box_component
-            .register_async_action_sender(sender.clone());
-        self.file_dialog.register_async_action_sender(sender);
-    }
-    fn override_keybind_id(&self, key_event: KeyEvent) -> Option<&AppComponent> {
-        if let Some(a) = self.file_dialog.override_keybind_id(key_event) {
-            return Some(a);
-        };
-        if let Some(a) = self.confirm_dialog_component.override_keybind_id(key_event) {
-            return Some(a);
-        };
-        Some(&AppComponent::Editor)
-    }
-    fn handle_action(&mut self, action: &Action) -> ActionResult {
+    fn child_handle_action(&mut self, action: &Action) -> ActionResult {
         let res = self.notification.handle_action(action);
         if res.is_consumed() {
             return res;
@@ -352,6 +287,60 @@ impl Component for EditorComponent<'_> {
         if res.is_consumed() {
             return res;
         }
+        let res = self.help_component.handle_action(action);
+        if res.is_consumed() {
+            return res;
+        };
+        ActionResult::not_consumed(false)
+    }
+}
+
+impl Component for EditorComponent<'_> {
+    fn register_config(&mut self, config: &Config, app_component: &AppComponent) {
+        let _ = app_component;
+        self.file_dialog
+            .register_config(config, &AppComponent::Editor);
+        self.confirm_dialog_component
+            .register_config(config, &AppComponent::Editor);
+        self.search_box_component
+            .register_config(config, &AppComponent::Editor);
+        self.help_component
+            .register_config(config, &AppComponent::Editor);
+        self.config = config.clone();
+    }
+    fn register_action_sender(&mut self, sender: ActionSender) {
+        self.action_sender = Some(sender.clone());
+        self.confirm_dialog_component
+            .register_action_sender(sender.clone());
+        self.help_component.register_action_sender(sender.clone());
+        self.file_dialog.register_action_sender(sender);
+    }
+    fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
+        self.task_result_sender = Some(sender.clone());
+        self.notification
+            .register_async_action_sender(sender.clone());
+        self.confirm_dialog_component
+            .register_async_action_sender(sender.clone());
+        self.search_box_component
+            .register_async_action_sender(sender.clone());
+        self.help_component
+            .register_async_action_sender(sender.clone());
+        self.file_dialog.register_async_action_sender(sender);
+    }
+    fn override_keybind_id(&self, key_event: KeyEvent) -> Option<&AppComponent> {
+        if let Some(a) = self.file_dialog.override_keybind_id(key_event) {
+            return Some(a);
+        };
+        if let Some(a) = self.confirm_dialog_component.override_keybind_id(key_event) {
+            return Some(a);
+        };
+        Some(&AppComponent::Editor)
+    }
+    fn handle_action(&mut self, action: &Action) -> ActionResult {
+        let child = self.child_handle_action(action);
+        if child.is_consumed() {
+            return child;
+        }
         match action {
             Action::Tick => return self.notification.handle_tick_action(),
             Action::Character(char) => return self.add_char(*char),
@@ -359,7 +348,6 @@ impl Component for EditorComponent<'_> {
             Action::NewLine => return self.new_line(),
             Action::Tab => return self.tab(),
             Action::Delete => return self.delete(),
-            Action::Help => return self.toggle_help(),
             Action::Insert => return self.begin_insert_mode(),
             Action::Left => {
                 self.stop_selection();
@@ -467,7 +455,7 @@ impl Component for EditorComponent<'_> {
         let file_title = Line::from(file_title).centered();
         let mut block = default_block().title_top(file_title);
         let mode_title = if self.insert { " Insert " } else { " Normal " };
-        let help_title = format!(" [{}] Help ", self.help_key);
+        let help_title = format!(" [{}] Help ", self.help_component.help_key());
         let help_title = Line::from(help_title).right_aligned();
         let mode_title = Line::raw(mode_title).left_aligned();
         block = block.title_bottom(help_title);
@@ -481,18 +469,8 @@ impl Component for EditorComponent<'_> {
             let modified_title = Line::raw(" Unsaved changes ").right_aligned();
             block = block.title_top(modified_title);
         }
-        let block_area = if let Some(help_component) = &mut self.help_component {
-            let [block_area, help_area] = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Fill(1), Constraint::Percentage(20)])
-                .areas(area);
-            help_component.render(frame, help_area);
-            frame.render_widget(&block, block_area);
-            block.inner(block_area)
-        } else {
-            frame.render_widget(&block, area);
-            block.inner(area)
-        };
+        frame.render_widget(&block, area);
+        let block_area = block.inner(area);
         let [block_area] = Layout::default()
             .constraints([Constraint::Fill(1)])
             .areas(block_area);
@@ -503,7 +481,8 @@ impl Component for EditorComponent<'_> {
         } else {
             frame.render_widget(&self.buffer.text_area, block_area);
         }
-        self.search_box_component.render(frame, area);
+        self.help_component.render(frame, block_area);
+        self.search_box_component.render(frame, block_area);
         self.notification.render(frame, block_area);
         self.file_dialog.render(frame, area);
         self.confirm_dialog_component.render(frame, block_area);

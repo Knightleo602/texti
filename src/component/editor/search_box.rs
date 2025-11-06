@@ -1,8 +1,8 @@
 use crate::action::{Action, ActionResult, AsyncActionSender};
 use crate::component::component_utils::default_block;
+use crate::component::effect_runner::EffectRunner;
 use crate::component::{AppComponent, Component};
 use crate::config::effects::floating_component_enter_effect;
-use crate::config::effects_config::EffectRunner;
 use crate::config::keybindings::key_event_to_string;
 use crate::config::Config;
 use ratatui::layout::{Constraint, Direction, Flex, Layout, Rect};
@@ -198,7 +198,7 @@ impl Component for SearchBoxComponent<'_> {
         self.down_key = down_key;
     }
     fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
-        self.effect_runner.register_async_sender(sender)
+        self.effect_runner.register_async_action_sender(sender)
     }
     fn handle_action(&mut self, action: &Action) -> ActionResult {
         if !self.visible() {

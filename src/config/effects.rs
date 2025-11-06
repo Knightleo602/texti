@@ -1,8 +1,6 @@
 use ratatui::prelude::Color;
 use ratatui::style::Style;
-use tachyonfx::fx::{
-    coalesce, coalesce_from, dissolve_to, evolve_into, EvolveSymbolSet,
-};
+use tachyonfx::fx::{coalesce, coalesce_from, dissolve_to, evolve_into, EvolveSymbolSet};
 use tachyonfx::pattern::{RadialPattern, SweepPattern};
 use tachyonfx::{Effect, Interpolation};
 
@@ -34,4 +32,8 @@ pub fn show_notification_effect() -> Effect {
 
 pub fn floating_component_enter_effect() -> Effect {
     coalesce(120).with_pattern(SweepPattern::left_to_right(0))
+}
+
+pub fn floating_component_bottom_right_enter() -> Effect {
+    coalesce_from(Style::default(), 200).with_pattern(RadialPattern::new(0.0, 0.0))
 }

@@ -1,8 +1,8 @@
 use crate::action::{Action, ActionResult, AsyncActionSender};
 use crate::component::component_utils::{center_horizontally, default_block};
+use crate::component::effect_runner::EffectRunner;
 use crate::component::{Component, TickCount};
 use crate::config::effects::show_notification_effect;
-use crate::config::effects_config::EffectRunner;
 use ratatui::layout::{Constraint, Flex, Layout, Rect};
 use ratatui::prelude::{Color, Text};
 use ratatui::widgets::{Clear, Paragraph};
@@ -75,7 +75,7 @@ impl NotificationComponent {
 
 impl Component for NotificationComponent {
     fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
-        self.effect_runner.register_async_sender(sender)
+        self.effect_runner.register_async_action_sender(sender)
     }
     fn handle_action(&mut self, action: &Action) -> ActionResult {
         match action {

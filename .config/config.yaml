@@ -4,9 +4,8 @@ keybindings:
     down: Down
     enter: Confirm
     esc: Cancel
-    h: Help
-    i: Insert
     q: Quit
+    h: ToggleHelp
   Dialog:
     esc: Cancel
     enter: Confirm
@@ -24,7 +23,7 @@ keybindings:
     tab: Tab
     enter: NewLine
     esc: Cancel
-    ctrl-h: Help
+    ctrl-h: ToggleHelp
     ctrl-i: Insert
     ctrl-q: Quit
     ctrl-s: Save

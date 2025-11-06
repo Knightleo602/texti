@@ -75,7 +75,7 @@ pub enum Action {
     Backspace,
     Search,
     NewLine,
-    Help,
+    ToggleHelp,
     Return,
     Undo,
     Redo,

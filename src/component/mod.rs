@@ -1,6 +1,7 @@
 mod component_utils;
 mod confirm_dialog;
 mod editor;
+mod effect_runner;
 mod file_selector;
 mod help;
 mod home;

@@ -3,6 +3,7 @@ use crate::action::{
 };
 use crate::component::component_utils::{center_horizontally, default_block};
 use crate::component::file_selector::component::FileSelectorComponent;
+use crate::component::help::HelpComponent;
 use crate::component::{AppComponent, Component};
 use crate::config::keybindings::key_event_to_string;
 use crate::config::{get_config_file_dir, Config};
@@ -36,6 +37,7 @@ pub struct HomeComponent<'a> {
     action_sender: Option<ActionSender>,
     async_action_sender: Option<AsyncActionSender>,
     file_selector_component: FileSelectorComponent<'a>,
+    help_component: HelpComponent,
     up_key: String,
     down_key: String,
 }
@@ -84,6 +86,8 @@ impl Component for HomeComponent<'_> {
             .unwrap_or_default();
         self.up_key = up_key;
         self.down_key = down_key;
+        self.help_component
+            .register_config(config, &AppComponent::HomeScreen);
     }
     fn register_action_sender(&mut self, sender: ActionSender) {
         self.file_selector_component
@@ -92,6 +96,8 @@ impl Component for HomeComponent<'_> {
     }
     fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
         self.file_selector_component
+            .register_async_action_sender(sender.clone());
+        self.help_component
             .register_async_action_sender(sender.clone());
         self.async_action_sender = Some(sender)
     }
@@ -105,6 +111,10 @@ impl Component for HomeComponent<'_> {
     }
     fn handle_action(&mut self, action: &Action) -> ActionResult {
         let r = self.file_selector_component.handle_action(action);
+        if r.is_consumed() {
+            return r;
+        }
+        let r = self.help_component.handle_action(action);
         if r.is_consumed() {
             return r;
         }
@@ -201,6 +211,7 @@ impl Component for HomeComponent<'_> {
             .highlight_spacing(HighlightSpacing::Always)
             .highlight_style(Style::new().white());
         frame.render_stateful_widget(list, options_area, &mut self.list_state);
+        self.help_component.render(frame, block_area);
         self.file_selector_component.render(frame, area);
     }
 }
