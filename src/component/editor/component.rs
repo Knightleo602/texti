@@ -7,6 +7,7 @@ use crate::component::confirm_dialog::ConfirmDialogComponent;
 use crate::component::editor::buffer::Buffer;
 use crate::component::editor::search_box::SearchBoxComponent;
 use crate::component::file_selector::component::FileSelectorComponent;
+use crate::component::file_selector::file_history_saver::FileHistorySaver;
 use crate::component::help::HelpComponent;
 use crate::component::notification::NotificationComponent;
 use crate::component::{AppComponent, Component};
@@ -36,6 +37,7 @@ pub struct EditorComponent<'a> {
     file_dialog: FileSelectorComponent<'a>,
     confirm_dialog_component: ConfirmDialogComponent,
     search_box_component: SearchBoxComponent<'a>,
+    file_history_saver: FileHistorySaver,
 }
 
 impl<P: AsRef<Path>> From<P> for EditorComponent<'_> {
@@ -201,13 +203,14 @@ impl EditorComponent<'_> {
         self.buffer.text_area.select_all();
         ActionResult::consumed(true)
     }
-    fn handle_file_saved(&mut self, result: SaveFileResult) -> ActionResult {
+    fn handle_file_saved(&mut self, result: &SaveFileResult) -> ActionResult {
         if self.saving_file {
             self.saving_file = false;
             match result {
                 SaveFileResult::Saved(path) => {
+                    self.file_history_saver.push_to_history(path);
                     self.notification.notify_text("File saved");
-                    self.buffer.change_path(path);
+                    self.buffer.change_path(path.clone());
                     self.buffer.modified = false;
                 }
                 SaveFileResult::Error(error) => self.notification.notify_error(error),
@@ -224,22 +227,18 @@ impl EditorComponent<'_> {
             .show(self.buffer.current_directory(), selector_type);
         ActionResult::consumed(true)
     }
-
     fn page_up(&mut self) -> ActionResult {
         self.buffer.text_area.move_cursor(CursorMove::Top);
         ActionResult::consumed(true)
     }
-
     fn page_down(&mut self) -> ActionResult {
         self.buffer.text_area.move_cursor(CursorMove::Down);
         ActionResult::consumed(true)
     }
-
     fn move_next_word(&mut self) -> ActionResult {
         self.buffer.text_area.move_cursor(CursorMove::WordForward);
         ActionResult::consumed(true)
     }
-
     fn move_previous_word(&mut self) -> ActionResult {
         self.buffer.text_area.move_cursor(CursorMove::WordBack);
         ActionResult::consumed(true)
@@ -293,6 +292,13 @@ impl EditorComponent<'_> {
         };
         ActionResult::not_consumed(false)
     }
+    pub fn save_to_history(&mut self) {
+        if let Some(path) = self.buffer.file_path.as_ref()
+            && path.is_file()
+        {
+            self.file_history_saver.push_to_history(path);
+        }
+    }
 }
 
 impl Component for EditorComponent<'_> {
@@ -307,6 +313,8 @@ impl Component for EditorComponent<'_> {
         self.help_component
             .register_config(config, &AppComponent::Editor);
         self.config = config.clone();
+        self.file_history_saver.load_from_config(config);
+        self.save_to_history();
     }
     fn register_action_sender(&mut self, sender: ActionSender) {
         self.action_sender = Some(sender.clone());
@@ -435,7 +443,7 @@ impl Component for EditorComponent<'_> {
             AsyncAction::LoadFileContents(string) => {
                 return self.load_file_contents(string.clone());
             }
-            AsyncAction::SavedFile(result) => return self.handle_file_saved(result.clone()),
+            AsyncAction::SavedFile(result) => return self.handle_file_saved(result),
             AsyncAction::Error(msg) => {
                 self.notification.notify_error(msg);
                 return ActionResult::consumed(true);

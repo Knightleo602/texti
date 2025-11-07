@@ -40,6 +40,15 @@ impl Keybindings {
         }
         None
     }
+    pub fn get_key_string_or_default(
+        &self,
+        action: Action,
+        app_component: &AppComponent,
+    ) -> String {
+        self.get_key_event_of_action(app_component, action)
+            .map(key_event_to_string)
+            .unwrap_or_default()
+    }
 }
 
 impl<'de> Deserialize<'de> for Keybindings {

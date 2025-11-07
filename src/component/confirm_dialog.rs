@@ -1,5 +1,5 @@
 use crate::action::{Action, ActionResult, ActionSender, AsyncActionSender};
-use crate::component::component_utils::{center, default_block};
+use crate::component::component_utils::{center, default_block, key_label_format};
 use crate::component::effect_runner::EffectRunner;
 use crate::component::{AppComponent, Component};
 use crate::config::effects::show_notification_effect;
@@ -80,8 +80,8 @@ impl Component for ConfirmDialogComponent {
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         if self.visible() {
             let area = center(area);
-            let enter_title = format!(" [{}] Yes ", self.confirm_key);
-            let cancel_title = format!(" [{}] No ", self.cancel_key);
+            let enter_title = key_label_format(&self.confirm_key, "Yes");
+            let cancel_title = key_label_format(&self.cancel_key, "No");
             let enter_title = Line::raw(&enter_title).right_aligned();
             let cancel_title = Line::raw(&cancel_title).left_aligned();
             let title = Line::raw(&self.title).centered();

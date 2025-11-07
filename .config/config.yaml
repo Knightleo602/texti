@@ -5,7 +5,10 @@ keybindings:
     enter: Confirm
     esc: Cancel
     q: Quit
-    h: ToggleHelp
+    n: NewFile
+    o: OpenFile
+    h: FileHistory
+    c: Config
   Dialog:
     esc: Cancel
     enter: Confirm

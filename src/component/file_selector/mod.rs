@@ -1,11 +1,18 @@
 use crate::component::component_utils::default_block;
+use crate::component::preview_component::PreviewComponent;
+use crate::component::Component;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::prelude::Line;
-use std::path::PathBuf;
+use ratatui::Frame;
+use std::path::{Path, PathBuf};
 use tui_textarea::TextArea;
 
 pub mod component;
+pub mod file_history;
+pub mod file_history_saver;
 mod input;
-mod preview_component;
+
+pub(super) const HIGHLIGHT_SYMBOL: &str = " > ";
 
 pub(super) fn create_default_text_area(title: &'_ str) -> TextArea<'_> {
     let title = Line::raw(title).left_aligned();
@@ -68,11 +75,23 @@ impl PathChild {
     }
 }
 
+pub(super) fn label_for_file<P: AsRef<Path>>(path: P) -> String {
+    let path = path.as_ref();
+    let extension = path.extension().unwrap_or_default().display().to_string();
+    let file_name = path.file_name().unwrap_or_default().display().to_string();
+    let icon = icon_for_file(&file_name, &extension);
+    if let Some(icon) = icon {
+        format!("{icon} {file_name}")
+    } else {
+        file_name.to_string()
+    }
+}
+
 fn icon_for_file(file_name: &str, ext: &str) -> Option<String> {
     let r = match ext {
         "rs" => "",
         "txt" => "󰦨",
-        "yaml" => "",
+        "yaml" | "yml" => "",
         "json" | "json5" => "",
         "toml" => "",
         "java" => "",
@@ -90,4 +109,22 @@ fn icon_for_file(file_name: &str, ext: &str) -> Option<String> {
         },
     };
     Some(r.to_string())
+}
+
+pub(super) fn render_preview_if_able(
+    frame: &mut Frame,
+    area: Rect,
+    preview_component: &mut PreviewComponent,
+    has_selected: bool,
+) -> Rect {
+    if preview_component.visible() && has_selected {
+        let [list_area, preview_area] = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
+            .areas(area);
+        preview_component.render(frame, preview_area);
+        list_area
+    } else {
+        area
+    }
 }

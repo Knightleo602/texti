@@ -92,6 +92,9 @@ pub enum Action {
     ReloadPreview,
     Resize(u16, u16),
     SaveTo,
+    NewFile,
+    FileHistory,
+    Config,
 }
 
 /// Application created actions. Usually by separate tasks that have been created by `Action`s

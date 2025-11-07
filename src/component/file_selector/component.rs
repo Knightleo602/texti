@@ -4,8 +4,8 @@ pub(crate) use crate::action::{
 use crate::component::component_utils::{center_horizontally, center_vertically, default_block};
 use crate::component::effect_runner::EffectRunner;
 use crate::component::file_selector::input::FileSelectorInput;
-use crate::component::file_selector::preview_component::PreviewComponent;
-use crate::component::file_selector::PathChild;
+use crate::component::file_selector::{render_preview_if_able, PathChild, HIGHLIGHT_SYMBOL};
+use crate::component::preview_component::PreviewComponent;
 use crate::component::{AppComponent, Component};
 use crate::config::effects::dialog_enter;
 use crossterm::event::KeyEvent;
@@ -227,7 +227,8 @@ impl Component for FileSelectorComponent<'_> {
     fn register_async_action_sender(&mut self, sender: AsyncActionSender) {
         self.preview_component
             .register_async_action_sender(sender.clone());
-        self.effect_runner.register_async_action_sender(sender.clone());
+        self.effect_runner
+            .register_async_action_sender(sender.clone());
         self.action_sender = Some(sender)
     }
     fn override_keybind_id(&self, key_event: KeyEvent) -> Option<&AppComponent> {
@@ -263,6 +264,9 @@ impl Component for FileSelectorComponent<'_> {
         ActionResult::consumed(false)
     }
     fn handle_async_action(&mut self, action: &AsyncAction) -> ActionResult {
+        if !self.visible {
+            return ActionResult::not_consumed(false);
+        }
         self.preview_component.handle_async_action(action)
     }
     fn render(&mut self, frame: &mut Frame, area: Rect) {
@@ -295,7 +299,7 @@ impl Component for FileSelectorComponent<'_> {
                 .direction(ListDirection::TopToBottom)
                 .highlight_style(Style::default().fg(Color::White).italic())
                 .highlight_spacing(HighlightSpacing::Always)
-                .highlight_symbol(" > ")
+                .highlight_symbol(HIGHLIGHT_SYMBOL)
                 .scroll_padding(3)
                 .block(block);
             let area = center_horizontally(area, Constraint::Percentage(70));
@@ -305,17 +309,12 @@ impl Component for FileSelectorComponent<'_> {
                 .direction(Direction::Vertical)
                 .constraints([Constraint::Length(3), Constraint::Fill(1)])
                 .areas(area);
-            let list_area =
-                if self.preview_component.visible() && self.list_state.selected().is_some() {
-                    let [list_area, preview_area] = Layout::default()
-                        .direction(Direction::Horizontal)
-                        .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
-                        .areas(list_area);
-                    self.preview_component.render(frame, preview_area);
-                    list_area
-                } else {
-                    list_area
-                };
+            let list_area = render_preview_if_able(
+                frame,
+                list_area,
+                &mut self.preview_component,
+                self.list_state.selected().is_some(),
+            );
             self.input.render(frame, input_area);
             frame.render_stateful_widget(list, list_area, &mut self.list_state);
             self.effect_runner.process(frame.buffer_mut(), area);

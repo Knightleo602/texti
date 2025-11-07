@@ -66,3 +66,8 @@ pub(super) async fn write_file(path: PathBuf, lines: String, overwrite: bool) ->
 pub(super) fn new_clipboard() -> Option<ClipboardContext> {
     ClipboardContext::new().ok()
 }
+
+#[inline]
+pub(super) fn key_label_format(key: &str, label: &str) -> String {
+    format!(" [{key}] {label} ")
+}

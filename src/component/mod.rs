@@ -7,6 +7,7 @@ mod help;
 mod home;
 pub(crate) mod navigator;
 mod notification;
+mod preview_component;
 
 use crate::action::{Action, ActionResult, ActionSender, AsyncAction, AsyncActionSender};
 use crate::config::Config;

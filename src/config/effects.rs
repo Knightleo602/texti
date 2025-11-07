@@ -20,7 +20,7 @@ pub fn leave_effect() -> Effect {
 }
 
 pub fn dialog_enter(color: Color) -> Effect {
-    let timer = (150, Interpolation::Linear);
+    let timer = (250, Interpolation::Linear);
     let style = Style::default().bg(color).fg(color);
     evolve_into((EvolveSymbolSet::Shaded, style), timer)
         .with_pattern(RadialPattern::center().with_transition_width(20.0))

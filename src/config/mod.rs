@@ -39,10 +39,12 @@ impl Config {
     pub fn new() -> Result<Config> {
         let default_config = serde_yaml::from_str::<Config>(CONFIG)?;
         let config_dir = get_config_dir();
+        let data_dir = get_data_dir();
         let file = config_dir.join(CONFIG_FILE_NAME);
         let source = File::from(file.clone()).format(Yaml).required(false);
         let config = config::Config::builder()
             .set_default("config_dir", config_dir.to_str().unwrap())?
+            .set_default("data_dir", data_dir.to_str().unwrap())?
             .add_source(source);
         let mut config: Config = config.build()?.try_deserialize()?;
         for (app_component, default_bindings) in default_config.keybindings.iter() {
@@ -67,6 +69,16 @@ pub fn get_config_dir() -> PathBuf {
 
 pub fn get_config_file_dir() -> PathBuf {
     get_config_dir().join("config.yml")
+}
+
+pub fn get_data_dir() -> PathBuf {
+    if let Some(s) = DATA_FOLDER.clone() {
+        s
+    } else if let Some(proj_dirs) = project_directory() {
+        proj_dirs.data_local_dir().to_path_buf()
+    } else {
+        PathBuf::from(".").join(".data")
+    }
 }
 
 fn project_directory() -> Option<ProjectDirs> {

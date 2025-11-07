@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use tokio::task::JoinHandle;
 
 #[derive(Debug)]
-pub(super) struct PreviewComponent {
+pub struct PreviewComponent {
     path_buf: PathBuf,
     contents: Option<String>,
     task: JoinHandle<()>,
