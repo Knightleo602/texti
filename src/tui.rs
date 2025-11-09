@@ -65,7 +65,10 @@ impl Tui {
             self.terminal.flush()?;
             crossterm::terminal::disable_raw_mode()?
         }
-        exit_tui()
+        crossterm::execute!(stdout(), DisableBracketedPaste)?;
+        crossterm::execute!(stdout(), LeaveAlternateScreen, cursor::Show)?;
+        crossterm::execute!(stdout(), PopKeyboardEnhancementFlags)?;
+        Ok(())
     }
 
     fn start_receiving_events(&mut self) {
@@ -154,14 +157,4 @@ impl Drop for Tui {
     fn drop(&mut self) {
         self.exit().unwrap();
     }
-}
-
-pub fn exit_tui() -> Result<()> {
-    if crossterm::terminal::is_raw_mode_enabled()? {
-        crossterm::terminal::disable_raw_mode()?;
-    }
-    crossterm::execute!(stdout(), DisableBracketedPaste)?;
-    crossterm::execute!(stdout(), LeaveAlternateScreen, cursor::Show)?;
-    crossterm::execute!(stdout(), PopKeyboardEnhancementFlags)?;
-    Ok(())
 }
