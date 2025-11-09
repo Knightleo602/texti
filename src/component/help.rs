@@ -171,14 +171,14 @@ impl HelpComponent {
             self.scroll_offset -= 1;
             return ActionResult::consumed(true);
         }
-        ActionResult::default()
+        ActionResult::consumed(false)
     }
     fn scroll_down(&mut self) -> ActionResult {
         if self.scroll_offset < self.max_offset {
             self.scroll_offset += 1;
             return ActionResult::consumed(true);
         }
-        ActionResult::default()
+        ActionResult::consumed(false)
     }
 }
 
