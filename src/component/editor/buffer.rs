@@ -71,7 +71,11 @@ impl Buffer<'_> {
         let Some(Some(file_name)) = path.file_name().map(|f| f.to_str()) else {
             return UNSAVED_FILE_NAME.to_string();
         };
-        file_name.to_string()
+        if path.exists() {
+            file_name.to_string()
+        } else {
+            format!("{file_name} - {UNSAVED_FILE_NAME}")
+        }
     }
     fn current_path(path: &Path, depth_limit: u16) -> Option<String> {
         let mut depth_limit = depth_limit;

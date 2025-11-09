@@ -54,6 +54,7 @@ impl<P: AsRef<Path>> From<P> for EditorComponent<'_> {
 impl EditorComponent<'_> {
     pub fn new<S: AsRef<str>>(file: S) -> Self {
         let path = PathBuf::from(file.as_ref());
+        let path = path.canonicalize().unwrap_or(path);
         let buffer = Buffer::new(Some(path));
         Self {
             buffer,
@@ -468,7 +469,9 @@ impl Component for EditorComponent<'_> {
         let mode_title = Line::raw(mode_title).left_aligned();
         block = block.title_bottom(help_title);
         block = block.title_bottom(mode_title);
-        if let Some(file_path) = &self.buffer.current_path_string {
+        if let Some(file_path) = &self.buffer.current_path_string
+            && !file_path.is_empty()
+        {
             let file_path_title = format!(" {} ", file_path);
             let file_path_title = Line::from(file_path_title).left_aligned();
             block = block.title_top(file_path_title);
